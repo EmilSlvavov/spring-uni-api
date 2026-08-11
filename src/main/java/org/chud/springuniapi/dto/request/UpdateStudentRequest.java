@@ -1,0 +1,12 @@
+package org.chud.springuniapi.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record UpdateStudentRequest(
+
+        @NotBlank(message = "name is required")
+        @Size(max = 120, message = "name must be at most 120 characters")
+        String name
+
+) { }
