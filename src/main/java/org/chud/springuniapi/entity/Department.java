@@ -1,18 +1,21 @@
 package org.chud.springuniapi.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "departments")
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Department extends BaseEntity{
 
 
@@ -21,6 +24,16 @@ public class Department extends BaseEntity{
 
     @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Course> courses = new ArrayList<>();
+
+
+    //Separate table, connected by foreign key on id
+    //Used mainly for small and few values
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "department_contacts",
+            joinColumns = @JoinColumn(name = "department_id")
+    )
+    private Set<ContactInfo> contacts = new HashSet<>();
 
 
     public Department(String name) {

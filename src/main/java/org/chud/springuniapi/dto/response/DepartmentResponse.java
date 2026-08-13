@@ -1,10 +1,13 @@
 package org.chud.springuniapi.dto.response;
 
-import org.chud.springuniapi.entity.Department;
+import java.util.List;
 
-public record DepartmentResponse(Long id, String name) {
+public record DepartmentResponse(Long id, String name, List<ContactInfoResponse> contacts) {
 
-    public static DepartmentResponse from(Department department) {
-        return new DepartmentResponse(department.getId(), department.getName());
+    //compact constructor (no args, taken implied from record header). Used to
+    //make an empty list instead of having null value/ create unmodifiable copy
+    // List of the contacts
+    public DepartmentResponse{
+        contacts = contacts == null ? List.of() : List.copyOf(contacts);
     }
 }

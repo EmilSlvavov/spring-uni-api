@@ -1,14 +1,18 @@
 package org.chud.springuniapi.service;
 
 import org.chud.springuniapi.dto.request.CreateDepartmentRequest;
+import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
+import org.chud.springuniapi.entity.ContactInfo;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.entity.Student;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
+import org.chud.springuniapi.mapper.DepartmentMapper;
 import org.chud.springuniapi.repository.DepartmentRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,23 +24,26 @@ import java.util.Set;
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
+    private final DepartmentMapper departmentMapper;
 
-    public DepartmentService(DepartmentRepository departmentRepository) {
+    public DepartmentService(DepartmentRepository departmentRepository, DepartmentMapper departmentMapper) {
         this.departmentRepository = departmentRepository;
+        this.departmentMapper = departmentMapper;
     }
 
     public List<DepartmentResponse> findAll() {
         return departmentRepository.findAll().stream()
-                .map(DepartmentResponse::from)
+                .map(departmentMapper::toResponse)
                 .toList();
     }
 
     public DepartmentResponse findById(Long id) {
-        return departmentRepository.findById(id)
-                .map(DepartmentResponse::from)
+        return departmentRepository.findWithContactsById(id)
+                .map(departmentMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Department", id));
     }
 
+    //changed so it checks if it won the race condition and throws if not
     @Transactional
     public DepartmentResponse create(CreateDepartmentRequest request) {
         if (departmentRepository.existsByNameIgnoreCase(request.name())) {
@@ -44,8 +51,17 @@ public class DepartmentService {
                     "Department '%s' already exists".formatted(request.name()));
         }
 
-        Department saved = departmentRepository.save(new Department(request.name()));
-        return DepartmentResponse.from(saved);
+        Department saved;
+
+        try{
+            saved = departmentRepository.saveAndFlush(new Department(request.name()));
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateResourceException(
+                    "Department '%s' already exists".formatted(request.name())
+            );
+        }
+
+        return departmentMapper.toResponse(saved);
     }
 
     @Transactional
@@ -59,8 +75,14 @@ public class DepartmentService {
                     "Department '%s' already exists".formatted(request.name()));
         }
 
-        department.setName(request.name()); // no save() flush() will save changes
-        return DepartmentResponse.from(department);
+        department.setName(request.name());
+        try {
+            departmentRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new DuplicateResourceException(
+                    "Department '%s' already exists".formatted(request.name()));
+        }
+        return departmentMapper.toResponse(department);
     }
 
     @Transactional
@@ -75,5 +97,17 @@ public class DepartmentService {
         }
 
         departmentRepository.delete(department);
+    }
+
+    @Transactional
+    public DepartmentResponse replaceContacts(Long id, ReplaceContactsRequest request) {
+        Department department = departmentRepository.findWithContactsById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+
+        department.getContacts().clear();
+        request.contacts().forEach(c ->
+                department.getContacts().add(new ContactInfo(c.type(), c.value())));
+
+        return departmentMapper.toResponse(department);
     }
 }

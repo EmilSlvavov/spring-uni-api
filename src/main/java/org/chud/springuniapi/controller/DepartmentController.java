@@ -2,6 +2,7 @@ package org.chud.springuniapi.controller;
 
 import jakarta.validation.Valid;
 import org.chud.springuniapi.dto.request.CreateDepartmentRequest;
+import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
 import org.chud.springuniapi.service.DepartmentService;
@@ -56,5 +57,13 @@ public class DepartmentController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         departmentService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/contacts")
+    public DepartmentResponse replaceContacts(
+            @PathVariable Long id,
+            @Valid @RequestBody ReplaceContactsRequest request) {
+
+        return departmentService.replaceContacts(id, request);
     }
 }

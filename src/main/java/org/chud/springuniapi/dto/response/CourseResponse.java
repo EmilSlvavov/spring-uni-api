@@ -1,15 +1,18 @@
 package org.chud.springuniapi.dto.response;
 
-import org.chud.springuniapi.entity.Course;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import org.chud.springuniapi.enums.CourseType;
 
-public record CourseResponse(Long id, String name, Long departmentId, String departmentName) {
-
-    public static CourseResponse from(Course course) {
-        return new CourseResponse(
-                course.getId(),
-                course.getName(),
-                course.getDepartment().getId(),
-                course.getDepartment().getName()
-        );
-    }
+//No from(), now CourseMapper maps
+//annotation means do not include null fields
+// using it since course can be both online or onsite and one value will be null
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record CourseResponse(Long id,
+                             String name,
+                             Long departmentId,
+                             String departmentName,
+                             CourseType type,
+                             String meetingUrl,
+                             Long roomNumber
+                             ) {
 }

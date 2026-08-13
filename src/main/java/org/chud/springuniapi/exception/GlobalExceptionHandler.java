@@ -1,5 +1,6 @@
 package org.chud.springuniapi.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -74,6 +75,19 @@ public class GlobalExceptionHandler {
         );
 
         problemDetail.setTitle("Optimistic Lock Failure");
+
+        return problemDetail;
+    }
+
+    //new exception handler for triggered by lost race conditions during create and update
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleConstraintViolation(DataIntegrityViolationException ex){
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Constraint violation"
+        );
+
+        problemDetail.setTitle("Constraint Violation");
 
         return problemDetail;
     }

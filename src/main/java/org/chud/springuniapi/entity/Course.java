@@ -1,6 +1,7 @@
 package org.chud.springuniapi.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,10 +11,15 @@ import java.util.Set;
 
 @Entity
 @Table(name = "courses")
+//Added Inheritance, all sub entities in one table, changed course to abstract
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "course_type",
+        discriminatorType = DiscriminatorType.STRING,
+        length = 20)
 @Getter
 @Setter
-@NoArgsConstructor
-public class Course extends BaseEntity{
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class Course extends BaseEntity {
 
 
     @Column(nullable = false, length = 150)

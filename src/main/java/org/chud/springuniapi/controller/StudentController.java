@@ -2,7 +2,9 @@ package org.chud.springuniapi.controller;
 
 import jakarta.validation.Valid;
 import org.chud.springuniapi.dto.request.CreateStudentRequest;
+import org.chud.springuniapi.dto.request.UpdateStudentProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateStudentRequest;
+import org.chud.springuniapi.dto.response.StudentDisplayResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
 import org.chud.springuniapi.service.StudentService;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,11 @@ public class StudentController {
         return studentService.findById(id);
     }
 
+    @GetMapping("/display")
+    public List<StudentDisplayResponse> getDisplayLabels() {
+        return studentService.findDisplayLabels();
+    }
+
     @PostMapping
     public ResponseEntity<StudentResponse> create(@Valid @RequestBody CreateStudentRequest request) {
         StudentResponse created = studentService.create(request);
@@ -50,6 +57,14 @@ public class StudentController {
             @Valid @RequestBody UpdateStudentRequest request) {
 
         return studentService.update(id, request);
+    }
+
+    @PutMapping("/{id}/profile")
+    public StudentResponse updateProfile(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateStudentProfileRequest request) {
+
+        return studentService.updateProfile(id, request);
     }
 
     @DeleteMapping("/{id}")
