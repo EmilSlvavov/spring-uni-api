@@ -2,6 +2,7 @@ package org.chud.springuniapi.mapper;
 
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
+import org.chud.springuniapi.dto.response.StudentSoftDeleteResponse;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Student;
 import org.mapstruct.Mapper;
@@ -19,6 +20,10 @@ public interface StudentMapper {
     //HashSet. It will vary between request. sortedCourses is purely for sorting
     @Mapping(target = "courses", source = "courses", qualifiedByName = "sortedCourses")
     StudentResponse toResponse(Student student);
+
+    @Mapping(target = "courses", source = "courses", qualifiedByName = "sortedCourses")
+    @Mapping(target = "isDeleted", source = "deleted")
+    StudentSoftDeleteResponse toResponseWithSoftDelete(Student student);
 
     CourseSummaryResponse toCourseSummary(Course course);
 

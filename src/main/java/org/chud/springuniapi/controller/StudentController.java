@@ -6,6 +6,7 @@ import org.chud.springuniapi.dto.request.UpdateStudentProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateStudentRequest;
 import org.chud.springuniapi.dto.response.StudentDisplayResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
+import org.chud.springuniapi.dto.response.StudentSoftDeleteResponse;
 import org.chud.springuniapi.service.StudentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,10 +46,20 @@ public class StudentController {
         return studentService.findDisplayLabels();
     }
 
+    @GetMapping("/softDeleted/{isDeleted}")
+    public List<StudentSoftDeleteResponse> getBySoftDeleted(@PathVariable boolean isDeleted) {
+        return  studentService.findAllBySoftDeleted(isDeleted);
+    }
+
     @PostMapping
     public ResponseEntity<StudentResponse> create(@Valid @RequestBody CreateStudentRequest request) {
         StudentResponse created = studentService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/{studentId}/courses/{courseId}")
+    public StudentResponse enroll(@PathVariable Long studentId, @PathVariable Long courseId) {
+        return studentService.enroll(studentId, courseId);
     }
 
     @PutMapping("/{id}")
@@ -73,13 +84,13 @@ public class StudentController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{studentId}/courses/{courseId}")
-    public StudentResponse enroll(@PathVariable Long studentId, @PathVariable Long courseId) {
-        return studentService.enroll(studentId, courseId);
-    }
-
     @DeleteMapping("/{studentId}/courses/{courseId}")
     public StudentResponse withdraw(@PathVariable Long studentId, @PathVariable Long courseId) {
         return studentService.withdraw(studentId, courseId);
+    }
+
+    @DeleteMapping("/softDeleted/{id}")
+    public StudentSoftDeleteResponse switchSoftDeleted(@PathVariable Long id) {
+        return studentService.switchSoftDelete(id);
     }
 }

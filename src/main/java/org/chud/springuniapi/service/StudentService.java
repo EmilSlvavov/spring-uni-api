@@ -5,6 +5,7 @@ import org.chud.springuniapi.dto.request.UpdateStudentProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateStudentRequest;
 import org.chud.springuniapi.dto.response.StudentDisplayResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
+import org.chud.springuniapi.dto.response.StudentSoftDeleteResponse;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Student;
 import org.chud.springuniapi.exception.DuplicateResourceException;
@@ -52,6 +53,12 @@ public class StudentService {
                         new StudentDisplayResponse(view.getName(),
                                 view.getDisplayLabel()))
                 .toList();
+    }
+
+    public List<StudentSoftDeleteResponse> findAllBySoftDeleted(boolean  isDeleted) {
+        return studentRepository.findStudentsByDeleted(isDeleted).stream()
+            .map(studentMapper::toResponseWithSoftDelete)
+            .toList();
     }
 
     //changed method so it checks if it won the race condition and throws if not
@@ -125,5 +132,14 @@ public class StudentService {
         }
 
         studentRepository.delete(student);
+    }
+
+    @Transactional
+    public StudentSoftDeleteResponse switchSoftDelete(Long id) {
+        Student student = studentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+
+        student.setDeleted(!student.isDeleted());
+        return studentMapper.toResponseWithSoftDelete(student);
     }
 }

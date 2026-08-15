@@ -1,5 +1,4 @@
 package org.chud.springuniapi.dto.response;
 
-//used for projection, no from() because its source
-// isnt an entity and mapping in service
+//used for projection
 public record StudentDisplayResponse(String name, String displayLabel) { }

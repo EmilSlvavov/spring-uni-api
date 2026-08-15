@@ -31,4 +31,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Course> findWithLockById(Long id);
 
+    List<Course> findCourseByDeleted(boolean isDeleted);
+
 }

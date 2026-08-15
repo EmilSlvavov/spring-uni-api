@@ -5,6 +5,7 @@ import org.chud.springuniapi.dto.request.CreateOnsiteCourseRequest;
 import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
+import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.entity.*;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.CourseMapper;
@@ -72,6 +73,14 @@ public class CourseService {
                 .toList();
     }
 
+    public List<CourseSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted){
+        return courseRepository
+            .findCourseByDeleted(isDeleted)
+            .stream()
+            .map(courseMapper::toResponseWithSoftDelete)
+            .toList();
+    }
+
     @Transactional
     public CourseResponse createOnline(CreateOnlineCourseRequest request) {
         Department department = requireDepartment(request.departmentId());
@@ -105,6 +114,16 @@ public class CourseService {
         }
 
         courseRepository.delete(course);
+    }
+
+    @Transactional
+    public CourseSoftDeleteResponse switchIsDeleted(Long id) {
+        Course course = courseRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+
+        course.setDeleted(!course.isDeleted());
+        return courseMapper.toResponseWithSoftDelete(course);
+
     }
 
     private Department requireDepartment(Long departmentId) {

@@ -4,6 +4,7 @@ import org.chud.springuniapi.dto.request.CreateDepartmentRequest;
 import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
+import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.chud.springuniapi.entity.ContactInfo;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Department;
@@ -41,6 +42,14 @@ public class DepartmentService {
         return departmentRepository.findWithContactsById(id)
                 .map(departmentMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+    }
+
+    public List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted) {
+        return departmentRepository
+            .findDepartmentByDeleted(isDeleted)
+            .stream()
+            .map(departmentMapper::toResponseWithSoftDelete)
+            .toList();
     }
 
     //changed so it checks if it won the race condition and throws if not
@@ -97,6 +106,15 @@ public class DepartmentService {
         }
 
         departmentRepository.delete(department);
+    }
+
+    @Transactional
+    public DepartmentSoftDeleteResponse switchIsDeleted(Long id){
+        Department department = departmentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+
+        department.setDeleted(!department.isDeleted());
+        return departmentMapper.toResponseWithSoftDelete(department);
     }
 
     @Transactional

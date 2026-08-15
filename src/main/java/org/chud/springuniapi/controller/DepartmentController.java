@@ -5,6 +5,7 @@ import org.chud.springuniapi.dto.request.CreateDepartmentRequest;
 import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
+import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.chud.springuniapi.service.DepartmentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,11 @@ public class DepartmentController {
         return departmentService.findById(id);
     }
 
+    @GetMapping("/softDeleted/{isDeleted}")
+    public List<DepartmentSoftDeleteResponse> getBySoftDeleted(@PathVariable boolean isDeleted){
+        return departmentService.findAllBySoftDeleted(isDeleted);
+    }
+
     @PostMapping
     public ResponseEntity<DepartmentResponse> create(@Valid @RequestBody CreateDepartmentRequest request) {
         DepartmentResponse created = departmentService.create(request);
@@ -53,17 +59,22 @@ public class DepartmentController {
         return departmentService.update(id, request);
     }
 
+    @PutMapping("/{id}/contacts")
+    public DepartmentResponse replaceContacts(
+        @PathVariable Long id,
+        @Valid @RequestBody ReplaceContactsRequest request) {
+
+        return departmentService.replaceContacts(id, request);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         departmentService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{id}/contacts")
-    public DepartmentResponse replaceContacts(
-            @PathVariable Long id,
-            @Valid @RequestBody ReplaceContactsRequest request) {
-
-        return departmentService.replaceContacts(id, request);
+    @DeleteMapping("/softDeleted/{id}")
+    public DepartmentSoftDeleteResponse switchSoftDeleted(@PathVariable Long id){
+        return departmentService.switchIsDeleted(id);
     }
 }

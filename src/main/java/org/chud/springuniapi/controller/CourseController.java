@@ -6,6 +6,7 @@ import org.chud.springuniapi.dto.request.CreateOnsiteCourseRequest;
 import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
+import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.service.CourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +50,11 @@ public class CourseController {
         return courseService.findSummariesByDepartment(departmentId);
     }
 
+    @GetMapping("/softDeleted/{isDeleted}")
+    public List<CourseSoftDeleteResponse> getBySoftDeleted(@PathVariable boolean isDeleted){
+        return courseService.findAllBySoftDeleted(isDeleted);
+    }
+
     @PostMapping("/online")
     public ResponseEntity<CourseResponse> createOnline(@Valid @RequestBody CreateOnlineCourseRequest request) {
         CourseResponse created = courseService.createOnline(request);
@@ -73,5 +79,10 @@ public class CourseController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         courseService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/softDeleted/{id}")
+    public CourseSoftDeleteResponse switchSoftDeleted(@PathVariable Long id){
+        return courseService.switchIsDeleted(id);
     }
 }

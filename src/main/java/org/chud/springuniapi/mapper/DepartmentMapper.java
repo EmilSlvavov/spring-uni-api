@@ -2,6 +2,7 @@ package org.chud.springuniapi.mapper;
 
 import org.chud.springuniapi.dto.response.ContactInfoResponse;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
+import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.chud.springuniapi.entity.ContactInfo;
 import org.chud.springuniapi.entity.Department;
 import org.mapstruct.Mapper;
@@ -19,6 +20,10 @@ public interface DepartmentMapper {
     DepartmentResponse toResponse(Department department);
 
     ContactInfoResponse toContactResponse(ContactInfo contactInfo);
+
+    @Mapping(target = "contacts", source = "contacts", qualifiedByName = "sortedContacts")
+    @Mapping(target = "isDeleted", source = "deleted")
+    DepartmentSoftDeleteResponse toResponseWithSoftDelete(Department department);
 
     //Named tells you to use this specific method for this property
     @Named("sortedContacts")

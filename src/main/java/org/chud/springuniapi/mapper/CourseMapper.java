@@ -1,6 +1,7 @@
 package org.chud.springuniapi.mapper;
 
 import org.chud.springuniapi.dto.response.CourseResponse;
+import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.OnlineCourse;
 import org.chud.springuniapi.entity.OnsiteCourse;
@@ -24,6 +25,15 @@ public interface CourseMapper {
         };
     }
 
+    default CourseSoftDeleteResponse toResponseWithSoftDelete(Course course) {
+        return switch (Hibernate.unproxy(course)) {
+            case OnlineCourse online -> toResponseWithSoftDelete(online);
+            case OnsiteCourse onsite -> toResponseWithSoftDelete(onsite);
+            default -> throw new IllegalStateException(
+                "Unmapped course subtype: " + course.getClass().getName());
+        };
+    }
+
     //toResponse for online
     @Mapping(target = "departmentId", source = "department.id")
     @Mapping(target = "departmentName", source = "department.name")
@@ -37,6 +47,22 @@ public interface CourseMapper {
     @Mapping(target = "type", constant = "ONSITE")
     @Mapping(target = "meetingUrl", ignore = true)
     CourseResponse toResponse(OnsiteCourse course);
+
+
+
+    @Mapping(target = "departmentId", source = "department.id")
+    @Mapping(target = "departmentName", source = "department.name")
+    @Mapping(target = "type", constant = "ONLINE")
+    @Mapping(target = "roomNumber", ignore = true)
+    @Mapping(target = "isDeleted", source = "deleted")
+    CourseSoftDeleteResponse toResponseWithSoftDelete(OnlineCourse course);
+
+    @Mapping(target = "departmentId", source = "department.id")
+    @Mapping(target = "departmentName", source = "department.name")
+    @Mapping(target = "type", constant = "ONSITE")
+    @Mapping(target = "meetingUrl", ignore = true)
+    @Mapping(target = "isDeleted", source = "deleted")
+    CourseSoftDeleteResponse toResponseWithSoftDelete(OnsiteCourse course);
 
     //mapper for list
     List<CourseResponse> toResponseList(List<Course> courses);

@@ -26,4 +26,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     //this and closed projection is that Spring loads the whole entity since
     //it does not know what you want from it.
     List<StudentDisplayView> findAllProjectedBy();
+
+    @EntityGraph(attributePaths = "courses")
+    List<Student> findStudentsByDeleted(boolean isDeleted);
 }
