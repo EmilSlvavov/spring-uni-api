@@ -111,11 +111,20 @@ public class DepartmentService {
     }
 
     @Transactional
-    public DepartmentSoftDeleteResponse switchIsDeleted(Long id) {
+    public DepartmentSoftDeleteResponse softDelete(Long id) {
         Department department = departmentRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Department", id));
 
-        department.setDeleted(!department.isDeleted());
+        department.setDeleted(true);
+        return departmentMapper.toResponseWithSoftDelete(department);
+    }
+
+    @Transactional
+    public DepartmentSoftDeleteResponse restoreSoftDelete(Long id) {
+        Department department = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+
+        department.setDeleted(false);
         return departmentMapper.toResponseWithSoftDelete(department);
     }
 

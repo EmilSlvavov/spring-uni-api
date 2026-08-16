@@ -135,11 +135,20 @@ public class StudentService {
     }
 
     @Transactional
-    public StudentSoftDeleteResponse switchSoftDelete(Long id) {
+    public StudentSoftDeleteResponse softDelete(Long id) {
         Student student = studentRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
-        student.setDeleted(!student.isDeleted());
+        student.setDeleted(true);
+        return studentMapper.toResponseWithSoftDelete(student);
+    }
+
+    @Transactional
+    public StudentSoftDeleteResponse restoreSoftDelete(Long id) {
+        Student student = studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+
+        student.setDeleted(false);
         return studentMapper.toResponseWithSoftDelete(student);
     }
 }

@@ -536,13 +536,14 @@
             "url": { "raw": "{{baseUrl}}/api/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "{{departmentId}}"] } }
         },
         {
-          "name": "DELETE /api/departments/softDeleted/{id} - same call again restores it",
+          "name": "PATCH /api/departments/softDeleted/{id} - restore it",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag flipped back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);",
-            "// The endpoint is a switch, not a delete - calling DELETE twice undeletes."
+            "// Restore is its own endpoint: @PatchMapping(\"/softDeleted/{id}\").",
+            "// DELETE is NOT a switch - it only ever sets the flag to true."
           ] } }],
-          "request": { "method": "DELETE", "header": [],
+          "request": { "method": "PATCH", "header": [],
             "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "{{departmentId}}"] } }
         },
         {
@@ -586,12 +587,12 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "false"] } }
         },
         {
-          "name": "DELETE /api/courses/softDeleted/{id} - restore the ONLINE course",
+          "name": "PATCH /api/courses/softDeleted/{id} - restore the ONLINE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag flipped back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
           ] } }],
-          "request": { "method": "DELETE", "header": [],
+          "request": { "method": "PATCH", "header": [],
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{courseId}}"] } }
         },
         {
@@ -634,13 +635,13 @@
             "url": { "raw": "{{baseUrl}}/api/students/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "false"] } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag flipped back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);",
             "// Everything is left exactly as folders 6 and 7 expect it."
           ] } }],
-          "request": { "method": "DELETE", "header": [],
+          "request": { "method": "PATCH", "header": [],
             "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
         }
       ]
@@ -713,12 +714,12 @@
             } }
         },
         {
-          "name": "DELETE /api/courses/softDeleted/{id} - restore the ONSITE course",
+          "name": "PATCH /api/courses/softDeleted/{id} - restore the ONSITE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
           ] } }],
-          "request": { "method": "DELETE", "header": [],
+          "request": { "method": "PATCH", "header": [],
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{onsiteCourseId}}"] } }
         },
         {
@@ -790,12 +791,12 @@
             } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
           ] } }],
-          "request": { "method": "DELETE", "header": [],
+          "request": { "method": "PATCH", "header": [],
             "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
         },
         {

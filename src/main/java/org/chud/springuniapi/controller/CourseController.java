@@ -10,15 +10,7 @@ import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.service.CourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -83,7 +75,12 @@ public class CourseController {
     }
 
     @DeleteMapping("/softDeleted/{id}")
-    public CourseSoftDeleteResponse switchSoftDeleted(@PathVariable Long id){
-        return courseService.switchIsDeleted(id);
+    public CourseSoftDeleteResponse softDelete(@PathVariable Long id){
+        return courseService.softDelete(id);
+    }
+
+    @PatchMapping("/softDeleted/{id}")
+    public CourseSoftDeleteResponse restoreSoftDelete(@PathVariable Long id){
+        return courseService.restoreSoftDelete(id);
     }
 }

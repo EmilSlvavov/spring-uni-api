@@ -117,11 +117,21 @@ public class CourseService {
     }
 
     @Transactional
-    public CourseSoftDeleteResponse switchIsDeleted(Long id) {
+    public CourseSoftDeleteResponse softDelete(Long id) {
         Course course = courseRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
-        course.setDeleted(!course.isDeleted());
+        course.setDeleted(true);
+        return courseMapper.toResponseWithSoftDelete(course);
+
+    }
+
+    @Transactional
+    public CourseSoftDeleteResponse restoreSoftDelete(Long id) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+
+        course.setDeleted(false);
         return courseMapper.toResponseWithSoftDelete(course);
 
     }

@@ -11,12 +11,14 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.MDC;
+
+import static org.chud.springuniapi.logging.CorrelationFilter.TRACE_ID;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -25,13 +27,12 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)              //request for the log, not visible to user
-    public ProblemDetail handleNotFound (ResourceNotFoundException ex, HttpServletRequest request) {
+    public ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
 
         //get the uuid
-        String traceId = newTraceId();
 
         //log logs the warning
-        log.warn("[{}] {} {} -> 404: {}", traceId, request.getMethod(), request.getRequestURI(), ex.getMessage());
+        log.warn("{} {} -> 404: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
@@ -39,7 +40,7 @@ public class GlobalExceptionHandler {
         );
 
         problemDetail.setTitle("Resource Not Found");
-        problemDetail.setProperty("traceId", traceId);
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         //spring puts the endpoint in instance field which cannot be switched off but having it empty
         // makes it so its not serialized
         problemDetail.setInstance(URI.create(""));
@@ -48,11 +49,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
-    public ProblemDetail handleDuplicate (DuplicateResourceException ex, HttpServletRequest request) {
+    public ProblemDetail handleDuplicate(DuplicateResourceException ex, HttpServletRequest request) {
 
-        String traceId = newTraceId();
 
-        log.warn("[{}] {} {} -> 409 Conflict: {}", traceId, request.getMethod(), request.getRequestURI(), ex.getMessage());
+        log.warn("{} {} -> 409 Conflict: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
         );
 
         problemDetail.setTitle("Duplicate Resource");
-        problemDetail.setProperty("traceId", traceId);//put the id in the user visible response
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));//put the id in the user visible response
         problemDetail.setInstance(URI.create(""));
 
         return problemDetail;
@@ -70,7 +70,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
 
-        String traceId = newTraceId();
 
         //Spring keeps all violations of @Valid in a BindingResult
         // and attaches it to the exception. Entry per failed constraint
@@ -83,7 +82,7 @@ public class GlobalExceptionHandler {
             errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
 
-        log.warn("[{}] {} {} -> 400 validation failed: {}", traceId, request.getMethod(), request.getRequestURI(), errors);
+        log.warn("{} {} -> 400 validation failed: {}", request.getMethod(), request.getRequestURI(), errors);
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
@@ -94,7 +93,7 @@ public class GlobalExceptionHandler {
 
         //We add another property to problemDetail and set it to the Map we made
         problemDetail.setProperty("errors", errors);
-        problemDetail.setProperty("traceId", traceId);
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         problemDetail.setInstance(URI.create(""));
 
         return problemDetail;
@@ -103,10 +102,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleConflict(OptimisticLockingFailureException ex, HttpServletRequest request) {
 
-        String traceId = newTraceId();
 
-        log.warn("[{}] {} {} -> 409 Modification overlapped: {}", traceId, request.getMethod(), request.getRequestURI(),
-            ex.getMessage());
+        log.warn("{} {} -> 409 Modification overlapped: {}", request.getMethod(), request.getRequestURI(),
+                ex.getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
@@ -114,7 +112,7 @@ public class GlobalExceptionHandler {
         );
 
         problemDetail.setTitle("Optimistic Lock Failure");
-        problemDetail.setProperty("traceId", traceId);
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         problemDetail.setInstance(URI.create(""));
 
         return problemDetail;
@@ -122,12 +120,11 @@ public class GlobalExceptionHandler {
 
     //new exception handler for triggered by lost race conditions during create and update
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ProblemDetail handleConstraintViolation(DataIntegrityViolationException ex, HttpServletRequest request){
+    public ProblemDetail handleConstraintViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
 
-        String traceId = newTraceId();
 
-        log.warn("[{}] {} {} -> 409 constraint violation: {}", traceId, request.getMethod(), request.getRequestURI(),
-            ex.getMostSpecificCause().getMessage());
+        log.warn("{} {} -> 409 constraint violation: {}", request.getMethod(), request.getRequestURI(),
+                ex.getMostSpecificCause().getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
@@ -135,15 +132,11 @@ public class GlobalExceptionHandler {
         );
 
         problemDetail.setTitle("Constraint Violation");
-        problemDetail.setProperty("traceId", traceId);
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         problemDetail.setInstance(URI.create(""));
 
         return problemDetail;
     }
 
 
-    //get a uuid for each log
-    private static String newTraceId() {
-        return UUID.randomUUID().toString().substring(0, 8);
-    }
 }

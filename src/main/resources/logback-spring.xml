@@ -33,7 +33,24 @@
         By taking 5 characters we add a spacebar and align the whole file better. %msg%n prints the
         log message and then a new line-->
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Second file, same shape, for the one-line-per-request log written by
+    RequestLoggingFilter. Kept separate from exceptions.log so each file has a single
+    purpose: this one is the traffic record, that one is the problem record. Both
+    patterns carry [%X{traceId}] so a line in one can be matched to a line in the other. -->
+    <appender name="REQUESTS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/requests.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/requests.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -42,6 +59,13 @@
     appender-ref references the appender we created earlier-->
     <logger name="org.chud.springuniapi.exception" level="WARN">
         <appender-ref ref="EXCEPTIONS"/>
+    </logger>
+
+    <!-- The filter logs at INFO, so this logger needs level INFO - at WARN it would
+    drop every request line. Without this logger the lines fall through to <root>
+    and only reach the console, which is why requests.log never appeared. -->
+    <logger name="org.chud.springuniapi.logging" level="INFO">
+        <appender-ref ref="REQUESTS"/>
     </logger>
 
     <!-- Everything else which we do not catch with the earlier appender goes to the console
