@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Boot's own console setup, so the console keeps the format we are used to -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- a file that ONLY the exception handler writes to -->
+    <appender name="EXCEPTIONS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/exceptions.log</file>
+
+        <!-- one file per day, keep a week of them -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/exceptions.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Only this package writes to that appender, so the file stays clean.
+         additivity="true" (the default) also lets the lines through to the
+         console below - set it to false if you want them in the file only. -->
+    <logger name="org.chud.springuniapi.exception" level="WARN" additivity="true">
+        <appender-ref ref="EXCEPTIONS"/>
+    </logger>
+
+    <!-- everything else: console only, exactly as before -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>
