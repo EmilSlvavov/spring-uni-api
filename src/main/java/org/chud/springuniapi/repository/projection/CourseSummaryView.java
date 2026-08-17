@@ -1,7 +1,7 @@
 package org.chud.springuniapi.repository.projection;
 
 //Methods have to match exact field name
-public interface CourseSummaryView extends  DynamicCourseProjectionMarker {
+public interface CourseSummaryView extends DynamicCourseProjectionMarker {
     Long getId();
     String getName();
     DepartmentNameView getDepartment();

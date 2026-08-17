@@ -60,7 +60,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     }
 
 
-    //
     private String body(ContentCachingRequestWrapper request) {
         byte[] bytes = request.getContentAsByteArray(); //get whatever wrapper cached in bytes
         if (bytes.length == 0) { //check for empty since get and delete have no body
