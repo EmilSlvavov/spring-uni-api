@@ -97,7 +97,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 
     //makes sure you do not filter requests if the uri starts  with actuator, equals /error or /favicon.ico method was suggested but right now
-    //it isnt functional
+    //it isnt functional right now
 //    @Override
 //    protected boolean shouldNotFilter(HttpServletRequest request) {
 //        String uri = request.getRequestURI();
