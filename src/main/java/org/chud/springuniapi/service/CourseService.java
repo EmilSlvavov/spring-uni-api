@@ -32,15 +32,15 @@ public class CourseService {
         this.courseMapper = courseMapper;
     }
 
-    public List<CourseResponse> findAll() {
+    public List<CourseResponse> findAll(Boolean deleted) {
         return courseRepository.findAllWithDepartment().stream()
-                .map(courseMapper::toResponse)
+                .map(course -> courseMapper.toResponse(course, deleted))
                 .toList();
     }
 
-    public CourseResponse findById(Long id) {
+    public CourseResponse findById(Long id, Boolean deleted) {
         return courseRepository.findByIdWithDepartment(id)
-                .map(courseMapper::toResponse)
+                .map(course -> courseMapper.toResponse(course, deleted))
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
     }
 
@@ -60,7 +60,7 @@ public class CourseService {
     }
 
     //changed ordering here the same way from above
-    public List<CourseResponse> findByDepartment(Long departmentId) {
+    public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
 
         List<Course> courses = courseRepository.findByDepartmentId(departmentId);
 
@@ -69,7 +69,7 @@ public class CourseService {
         }
 
         return courses.stream()
-                .map(courseMapper::toResponse)
+                .map(course -> courseMapper.toResponse(course, deleted))
                 .toList();
     }
 

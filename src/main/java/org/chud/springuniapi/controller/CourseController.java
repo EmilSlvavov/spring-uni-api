@@ -33,15 +33,16 @@ public class CourseController {
     }
 
     @GetMapping
-    public List<CourseResponse> getAll(@RequestParam(required = false) Long departmentId) {
+    public List<CourseResponse> getAll(@RequestParam(required = false) Long departmentId,
+        @RequestParam(required = false) Boolean deleted) {
         return departmentId == null
-                ? courseService.findAll()
-                : courseService.findByDepartment(departmentId);
+                ? courseService.findAll(deleted)
+                : courseService.findByDepartment(departmentId, deleted);
     }
 
     @GetMapping("/{id}")
-    public CourseResponse getById(@PathVariable Long id) {
-        return courseService.findById(id);
+    public CourseResponse getById(@PathVariable Long id, @RequestParam(required = false) Boolean deleted) {
+        return courseService.findById(id, deleted);
     }
 
     //endpoint for showcasing projection

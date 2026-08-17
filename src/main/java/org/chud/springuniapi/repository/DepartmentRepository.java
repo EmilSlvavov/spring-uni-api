@@ -15,11 +15,11 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
     //find with contacts
     @Override
-    @EntityGraph(attributePaths = "contacts")
+    @EntityGraph(attributePaths = {"contacts", "courses"})
     List<Department> findAll();
 
     //find with contacts by id
-    @EntityGraph(attributePaths = "contacts")
+    @EntityGraph(attributePaths = {"contacts", "courses"})
     Optional<Department> findWithContactsById(Long id);
 
     @Lock(LockModeType.PESSIMISTIC_READ)

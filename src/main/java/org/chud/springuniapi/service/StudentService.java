@@ -34,17 +34,17 @@ public class StudentService {
         this.studentMapper = studentMapper;
     }
 
-    public List<StudentResponse> findAll() {
+    public List<StudentResponse> findAll(Boolean deleted) {
         return studentRepository.findAll().stream()
-                .map(studentMapper::toResponse)
+                .map(student -> studentMapper.toResponse(student, deleted))
                 .toList();
     }
 
-    public StudentResponse findById(Long id) {
+    public StudentResponse findById(Long id, Boolean deleted) {
         Student student = studentRepository.findWithCoursesById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
-        return studentMapper.toResponse(student);
+        return studentMapper.toResponse(student, deleted);
     }
 
     public List<StudentDisplayResponse> findDisplayLabels() {

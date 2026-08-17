@@ -1,33 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--filename matters logback-spring.xml is loaded by Spring boot while logback.xml would have been
+ loaded b[y Logback itself. When in resources folder it gets put on the classpath where Spring Boot
+ checks it automatically-->
 <configuration>
 
-    <!-- Boot's own console setup, so the console keeps the format we are used to -->
+    <!-- include resource= pastes another xml file found on the classpath. These two are
+    Spring Boots default logging setup. Making this file replaces the default. We put the
+    includes to use thier functionallities like colored console format-->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <!-- a file that ONLY the exception handler writes to -->
+    <!-- Everything Logback gives us is a logger(the object that we created in the handler),
+    appender(where we actually put the logs, a destination - can be console or a file etc.)
+    and a pattern(how a line looks like). Here we set the appender and its destination-->
+    <!-- RollingFileAppender writes to a file and periodically starts a fresh one so it can't grow forever. -->
     <appender name="EXCEPTIONS" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/exceptions.log</file>
 
-        <!-- one file per day, keep a week of them -->
+        <!-- config on when to start a new file and how to call the old one. %d{yyyy-MM-dd} sets when we
+        make a new file. Its every day since the smallest unit in the pattern is day. Previous day file
+        get renamed to "exceptions.yyyy-mm-dd.log" and the new exceptions.log starts empty. We set max
+         history to 7 days so we keep maximum 7 archives of logs and prvious ones get deleted.-->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/exceptions.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
         </rollingPolicy>
 
+        <!-- Encoder turns the log event we have set int the handler to the bytes written in the file.
+        The pattern is %d(print the date from year up to ms), %-5level means print level, left align it
+        in the file and take up to 5 characters. We do this because INFO has 4 and ERROR has 5 characters
+        and when aligning with different characters the log will move one to the left for every INFO.
+        By taking 5 characters we add a spacebar and align the whole file better. %msg%n prints the
+        log message and then a new line-->
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Only this package writes to that appender, so the file stays clean.
-         additivity="true" (the default) also lets the lines through to the
-         console below - set it to false if you want them in the file only. -->
-    <logger name="org.chud.springuniapi.exception" level="WARN" additivity="true">
+    <!-- With name, we specify the package which will be writing to the appender. With level, we say
+    which log level we will take. We will take WARN and ERROR, but we will drop TRACE, DEBUG, INFO.
+    appender-ref references the appender we created earlier-->
+    <logger name="org.chud.springuniapi.exception" level="WARN">
         <appender-ref ref="EXCEPTIONS"/>
     </logger>
 
-    <!-- everything else: console only, exactly as before -->
+    <!-- Everything else which we do not catch with the earlier appender goes to the console
+     with a minimal level of INFO, and we reference the console appender-->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>

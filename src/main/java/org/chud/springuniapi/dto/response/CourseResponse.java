@@ -1,6 +1,7 @@
 package org.chud.springuniapi.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 import org.chud.springuniapi.enums.CourseType;
 
 //annotation means do not include null fields
@@ -12,6 +13,10 @@ public record CourseResponse(Long id,
                              String departmentName,
                              CourseType type,
                              String meetingUrl,
-                             Long roomNumber
+                             Long roomNumber,
+                             List<StudentSummaryResponse> students
                              ) {
+    public CourseResponse {
+        students = students == null ? List.of() : List.copyOf(students);
+    }
 }

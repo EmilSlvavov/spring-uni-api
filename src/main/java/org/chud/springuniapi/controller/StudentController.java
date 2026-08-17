@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -32,13 +33,13 @@ public class StudentController {
     }
 
     @GetMapping
-    public List<StudentResponse> getAll() {
-        return studentService.findAll();
+    public List<StudentResponse> getAll(@RequestParam(required = false) Boolean deleted) {
+        return studentService.findAll(deleted);
     }
 
     @GetMapping("/{id}")
-    public StudentResponse getById(@PathVariable Long id) {
-        return studentService.findById(id);
+    public StudentResponse getById(@PathVariable Long id, @RequestParam(required = false) Boolean deleted) {
+        return studentService.findById(id, deleted);
     }
 
     @GetMapping("/display")

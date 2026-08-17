@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -31,13 +32,13 @@ public class DepartmentController {
     }
 
     @GetMapping
-    public List<DepartmentResponse> getAll() {
-        return departmentService.findAll();
+    public List<DepartmentResponse> getAll(@RequestParam(required = false) Boolean deleted) {
+        return departmentService.findAll(deleted);
     }
 
     @GetMapping("/{id}")
-    public DepartmentResponse getById(@PathVariable Long id) {
-        return departmentService.findById(id);
+    public DepartmentResponse getById(@PathVariable Long id, @RequestParam(required = false) Boolean deleted) {
+        return departmentService.findById(id, deleted);
     }
 
     @GetMapping("/softDeleted/{isDeleted}")

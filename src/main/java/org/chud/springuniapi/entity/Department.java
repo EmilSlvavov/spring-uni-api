@@ -6,9 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -23,7 +21,7 @@ public class Department extends BaseEntity{
     private String name;
 
     @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Course> courses = new ArrayList<>();
+    private Set<Course> courses = new HashSet<>();
 
 
     //Separate table, connected by foreign key on id
