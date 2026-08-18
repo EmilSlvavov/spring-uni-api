@@ -1,93 +1,93 @@
 package org.chud.springuniapi.entity;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class StudentTest {
 
-    @Test
-    @DisplayName("enroll registers the course on the student's side")
-    void enrollAddsCourseToStudent() {
+    private Department informatics;
+    private OnsiteCourse databases;
+    private Student ana;
+
+    @BeforeEach
+    void setup() {
         //Assign
-        Department informatics = new Department("Informatics");
-        OnsiteCourse databases = new OnsiteCourse("Databases", informatics, 101L);
-        Student ana = new Student("Ana", "ana@uni.bg");
-
-        //Act
-        ana.enroll(databases);
-
-        //Assert
-        assertThat(ana.getCourses()).containsExactly(databases);
+        informatics = new Department("Informatics");
+        databases = new OnsiteCourse("Databases", informatics, 101L);
+        ana = new Student("Ana", "ana@uni.bg");
     }
 
-    @Test
-    @DisplayName("enroll registers the student on the course's side")
-    void enrollAddsStudentToCourse() {
-        //Assign
-        Department informatics = new Department("Informatics");
-        OnsiteCourse databases = new OnsiteCourse("Databases", informatics, 101L);
-        Student ana = new Student("Ana", "ana@uni.bg");
+    @Nested
+    @DisplayName("enroll tests")
+    class Enroll {
 
-        //Act
-        ana.enroll(databases);
+        @Test
+        @DisplayName("enroll registers the course on the student's side")
+        void enrollAddsCourseToStudent() {
+            //Act
+            ana.enroll(databases);
 
-        //Assert
-        assertThat(databases.getStudents()).containsExactly(ana);
+            //Assert
+            assertThat(ana.getCourses()).containsExactly(databases);
+        }
+
+        @Test
+        @DisplayName("enroll registers the student on the course's side")
+        void enrollAddsStudentToCourse() {
+            //Act
+            ana.enroll(databases);
+
+            //Assert
+            assertThat(databases.getStudents()).containsExactly(ana);
+        }
+
+        @Test
+        @DisplayName("student can enroll in multiple courses")
+        void studentCanEnrollMultipleCourses() {
+            OnlineCourse oop = new OnlineCourse("OOP", informatics, "meethingUrl");
+
+            //Act
+            ana.enroll(databases);
+            ana.enroll(oop);
+
+            //Assert
+            assertThat(ana.getCourses()).hasSize(2);
+        }
     }
 
-    @Test
-    @DisplayName("student can enroll in multiple courses")
-    void studentCanEnrollMultipleCourses() {
-        //Assign
-        Department informatics = new Department("Informatics");
-        OnsiteCourse databases = new OnsiteCourse("Databases", informatics, 101L);
-        OnlineCourse oop = new OnlineCourse("OOP", informatics, "meethingUrl");
-        Student ana = new Student("Ana", "ana@uni.bg");
+    @Nested
+    @DisplayName("withdraw tests")
+    class Withdraw {
 
-        //Act
-        ana.enroll(databases);
-        ana.enroll(oop);
+        @Test
+        @DisplayName("withdraw removes the course from the student")
+        void withdrawRemovesCourseFromStudent() {
+            ana.enroll(databases);
 
-        //Assert
-        assertThat(ana.getCourses()).hasSize(2);
-    }
+            //Act
 
-    @Test
-    @DisplayName("withdraw removes the course from the student")
-    void withdrawRemovesCourseFromStudent() {
-        //Assign
-        Department informatics = new Department("Informatics");
-        OnsiteCourse databases = new OnsiteCourse("Databases", informatics, 101L);
-        Student ana = new Student("Ana", "ana@uni.bg");
+            ana.withdraw(databases);
 
-        ana.enroll(databases);
+            //Assert
+            assertThat(ana.getCourses()).isEmpty();
+        }
 
-        //Act
+        @Test
+        @DisplayName("withdraw removes the student from the course")
+        void withdrawRemovesStudentFromCourse() {
+            ana.enroll(databases);
 
-        ana.withdraw(databases);
+            //Act
 
-        //Assert
-        assertThat(ana.getCourses()).isEmpty();
-    }
+            ana.withdraw(databases);
 
-    @Test
-    @DisplayName("withdraw removes the student from the course")
-    void withdrawRemovesStudentFromCourse() {
-        //Assign
-        Department informatics = new Department("Informatics");
-        OnsiteCourse databases = new OnsiteCourse("Databases", informatics, 101L);
-        Student ana = new Student("Ana", "ana@uni.bg");
-
-        ana.enroll(databases);
-
-        //Act
-
-        ana.withdraw(databases);
-
-        //Assert
-        assertThat(databases.getStudents()).isEmpty();
+            //Assert
+            assertThat(databases.getStudents()).isEmpty();
+        }
     }
 
     @Test
