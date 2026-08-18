@@ -8,11 +8,13 @@ import org.chud.springuniapi.dto.response.StudentResponse;
 import org.chud.springuniapi.dto.response.StudentSoftDeleteResponse;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Student;
+import org.chud.springuniapi.application_events.event.EnrollStudentEvent;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.StudentMapper;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.StudentRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +29,13 @@ public class StudentService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
     private final StudentMapper studentMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public StudentService(StudentRepository studentRepository, CourseRepository courseRepository, StudentMapper studentMapper) {
+    public StudentService(StudentRepository studentRepository, CourseRepository courseRepository, StudentMapper studentMapper, ApplicationEventPublisher eventPublisher) {
         this.studentRepository = studentRepository;
         this.courseRepository = courseRepository;
         this.studentMapper = studentMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<StudentResponse> findAll(Boolean deleted) {
@@ -108,6 +112,9 @@ public class StudentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Course", courseId));
 
         student.enroll(course); // again dirty checking saves it
+
+        eventPublisher.publishEvent(new EnrollStudentEvent(studentId, courseId, course.getName()));
+
         return studentMapper.toResponse(student);
     }
 
