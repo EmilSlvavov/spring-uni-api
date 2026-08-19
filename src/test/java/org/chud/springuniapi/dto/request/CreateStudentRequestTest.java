@@ -84,6 +84,16 @@ public class CreateStudentRequestTest {
         assertThat(messagesOf(violations)).contains("name must be at most 120 characters");
     }
 
+    @Test
+    @DisplayName("a name of exactly 120 characters is accepted")
+    void acceptsNameAtMaxLength() {
+        CreateStudentRequest request = new CreateStudentRequest("a".repeat(120), "email@abv.bg");
+
+        Set<ConstraintViolation<CreateStudentRequest>> violations = validator.validate(request);
+
+        assertThat(violations).isEmpty();
+    }
+
 
 
 }
