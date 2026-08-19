@@ -57,7 +57,7 @@ public class CreateStudentRequestTest {
 
         Set<ConstraintViolation<CreateStudentRequest>> violations = validator.validate(request);
 
-        assertThat(messagesOf(violations)).allMatch(message -> message.equals("must be a valid email"));
+        assertThat(messagesOf(violations)).contains("must be a valid email");
     }
 
     @ParameterizedTest(name = "\"{0}\" should be rejected")
@@ -69,7 +69,7 @@ public class CreateStudentRequestTest {
 
         Set<ConstraintViolation<CreateStudentRequest>> violations = validator.validate(request);
 
-        assertThat(messagesOf(violations)).allMatch(message -> message.equals("name is required"));
+        assertThat(messagesOf(violations)).contains("name is required");
     }
 
     @Test
@@ -81,7 +81,7 @@ public class CreateStudentRequestTest {
 
         Set<ConstraintViolation<CreateStudentRequest>> violations = validator.validate(request);
 
-        assertThat(messagesOf(violations)).allMatch(message -> message.equals("name must be at most 120 characters"));
+        assertThat(messagesOf(violations)).contains("name must be at most 120 characters");
     }
 
 
