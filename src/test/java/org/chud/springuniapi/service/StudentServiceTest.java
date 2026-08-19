@@ -52,19 +52,21 @@ public class StudentServiceTest {
 
         StudentResponse expected = new StudentResponse(1L, "Ana", "ana@uni.bg", null, null, List.of());
 
-        when(studentRepository.findWithCoursesById(1L)).thenReturn(Optional.of(ana));
-        when(studentMapper.toResponse(ana, false)).thenReturn(expected);
+        //switched from refactoring to using findById instead of previous findWithCoursesById
+        when(studentRepository.findById(1L)).thenReturn(Optional.of(ana));
+        //mapper changed and now doesnt do filtering, therefore no boolean value here
+        when(studentMapper.toResponse(ana, List.of())).thenReturn(expected);
 
         StudentResponse result = studentService.findById(1L, false);
 
         assertThat(result).isEqualTo(expected);
-        verify(studentRepository).findWithCoursesById(1L);
+        verify(studentRepository).findById(1L);
     }
 
     @Test
     @DisplayName("findbyid throws when missing the entity")
     void findByIdThrowsWhenMissing() {
-        when(studentRepository.findWithCoursesById(999L)).thenReturn(Optional.empty());
+        when(studentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> studentService.findById(999L, false))
             .isInstanceOf(ResourceNotFoundException.class)
@@ -86,7 +88,7 @@ public class StudentServiceTest {
 
         when(studentRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
         when(studentRepository.saveAndFlush(any(Student.class))).thenReturn(saved);
-        when(studentMapper.toResponse(saved)).thenReturn(expected);
+        when(studentMapper.toResponse(saved, List.of())).thenReturn(expected);
 
         StudentResponse result = studentService.create(request);
 

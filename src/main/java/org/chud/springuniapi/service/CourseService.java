@@ -6,16 +6,19 @@ import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
+import org.chud.springuniapi.dto.response.StudentSummaryResponse;
 import org.chud.springuniapi.entity.*;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.CourseMapper;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryView;
+import org.chud.springuniapi.repository.projection.StudentSummaryRow;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -33,15 +36,19 @@ public class CourseService {
     }
 
     public List<CourseResponse> findAll(Boolean deleted) {
-        return courseRepository.findAllWithDepartment().stream()
-                .map(course -> courseMapper.toResponse(course, deleted))
+        List<Course> courses = courseRepository.findAllWithDepartment();
+        Map<Long, List<StudentSummaryResponse>> studentsByCourse = studentsByCourse(courses, deleted);
+
+        return courses.stream()
+                .map(course -> courseMapper.toResponse(course, studentsOf(studentsByCourse, course)))
                 .toList();
     }
 
     public CourseResponse findById(Long id, Boolean deleted) {
-        return courseRepository.findByIdWithDepartment(id)
-                .map(course -> courseMapper.toResponse(course, deleted))
+        Course course = courseRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+
+        return courseMapper.toResponse(course, studentsOf(course, deleted));
     }
 
     //Changed ordering to avoid passing existence check even if right after it somebody deletes it
@@ -68,8 +75,10 @@ public class CourseService {
             throw new ResourceNotFoundException("Department", departmentId);
         }
 
+        Map<Long, List<StudentSummaryResponse>> studentsByCourse = studentsByCourse(courses, deleted);
+
         return courses.stream()
-                .map(course -> courseMapper.toResponse(course, deleted))
+                .map(course -> courseMapper.toResponse(course, studentsOf(studentsByCourse, course)))
                 .toList();
     }
 
@@ -84,15 +93,16 @@ public class CourseService {
     @Transactional
     public CourseResponse createOnline(CreateOnlineCourseRequest request) {
         Department department = requireDepartment(request.departmentId());
+        //a fresh course has no students yet, so there is nothing to query for
         return courseMapper.toResponse(courseRepository.save(
-                new OnlineCourse(request.name(), department, request.meetingUrl())));
+                new OnlineCourse(request.name(), department, request.meetingUrl())), List.of());
     }
 
     @Transactional
     public CourseResponse createOnsite(CreateOnsiteCourseRequest request) {
         Department department = requireDepartment(request.departmentId());
         return courseMapper.toResponse(courseRepository.save(
-                new OnsiteCourse(request.name(), department, request.roomNumber())));
+                new OnsiteCourse(request.name(), department, request.roomNumber())), List.of());
     }
 
     @Transactional
@@ -101,7 +111,7 @@ public class CourseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
         course.setName(request.name()); // no save() flush() will save changes
-        return courseMapper.toResponse(course);
+        return courseMapper.toResponse(course, studentsOf(course, null));
     }
 
     @Transactional
@@ -139,5 +149,26 @@ public class CourseService {
     private Department requireDepartment(Long departmentId) {
         return departmentRepository.findWithLockById(departmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Department", departmentId));
+    }
+
+    //one query for the whole list instead of one per course
+    private Map<Long, List<StudentSummaryResponse>> studentsByCourse(List<Course> courses, Boolean deleted) {
+        List<Long> ids = courses.stream().map(Course::getId).toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+
+        return StudentSummaryRow.groupByOwner(
+                courseRepository.findStudentSummariesByCourseIds(ids, deleted));
+    }
+
+    private List<StudentSummaryResponse> studentsOf(Course course, Boolean deleted) {
+        return studentsOf(studentsByCourse(List.of(course), deleted), course);
+    }
+
+    private List<StudentSummaryResponse> studentsOf(Map<Long, List<StudentSummaryResponse>> studentsByCourse,
+        Course course) {
+
+        return studentsByCourse.getOrDefault(course.getId(), List.of());
     }
 }
