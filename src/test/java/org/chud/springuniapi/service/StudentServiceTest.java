@@ -9,7 +9,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+
+import org.chud.springuniapi.application_events.event.EnrollStudentEvent;
+import org.chud.springuniapi.application_events.listener.EnrollListener;
 import org.chud.springuniapi.dto.request.CreateStudentRequest;
+import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.entity.OnlineCourse;
@@ -18,15 +22,23 @@ import org.chud.springuniapi.entity.Student;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.StudentMapper;
+import org.chud.springuniapi.mapper.StudentMapperImpl;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.StudentRepository;
+import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -39,32 +51,44 @@ public class StudentServiceTest {
     @Mock
     private CourseRepository courseRepository;
 
-    @Mock
-    private StudentMapper studentMapper;
+    @Spy
+    private StudentMapper studentMapper = new StudentMapperImpl();
 
-    @InjectMocks
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Captor
+    private ArgumentCaptor<Student> studentCaptor;
+
+    @Captor ArgumentCaptor<EnrollStudentEvent> eventCaptor;
+
     private StudentService studentService;
+
+    @BeforeEach
+    void setUp() {
+        studentService = new StudentService(
+                studentRepository, courseRepository, studentMapper, eventPublisher);
+    }
 
     @Test
     @DisplayName("check if mappings are correct")
     void findByIdReturnsMappedResponse(){
-        Student ana = new Student("Ana", "ana@uni.bg");
-
-        StudentResponse expected = new StudentResponse(1L, "Ana", "ana@uni.bg", null, null, List.of());
+        Student student = new Student("Ana", "ana@uni.bg");
+        ReflectionTestUtils.setField(student, "id", 1L);
 
         //switched from refactoring to using findById instead of previous findWithCoursesById
-        when(studentRepository.findById(1L)).thenReturn(Optional.of(ana));
-        //mapper changed and now doesnt do filtering, therefore no boolean value here
-        when(studentMapper.toResponse(ana, List.of())).thenReturn(expected);
+        when(studentRepository.findById(1L)).thenReturn(Optional.of(student));
 
         StudentResponse result = studentService.findById(1L, false);
 
-        assertThat(result).isEqualTo(expected);
+        //the real mapper ran, so these are its actual output
+        assertThat(result.name()).isEqualTo("Ana");
+        assertThat(result.email()).isEqualTo("ana@uni.bg");
         verify(studentRepository).findById(1L);
     }
 
     @Test
-    @DisplayName("findbyid throws when missing the entity")
+    @DisplayName("findById throws when missing the entity")
     void findByIdThrowsWhenMissing() {
         when(studentRepository.findById(999L)).thenReturn(Optional.empty());
 
@@ -72,7 +96,7 @@ public class StudentServiceTest {
             .isInstanceOf(ResourceNotFoundException.class)
             .hasMessage("Student with id 999 not found");
 
-        verifyNoInteractions(studentMapper);
+        verify(studentMapper, never()).toResponse(any(), any());
     }
 
     @Test
@@ -83,17 +107,22 @@ public class StudentServiceTest {
 
         Student saved = new Student("Ana", "ana@uni.bg");
 
-        StudentResponse expected = new StudentResponse(
-            1L, "Ana", "ana@uni.bg", null, null, List.of());
-
         when(studentRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
         when(studentRepository.saveAndFlush(any(Student.class))).thenReturn(saved);
-        when(studentMapper.toResponse(saved, List.of())).thenReturn(expected);
 
         StudentResponse result = studentService.create(request);
 
-        assertThat(result).isEqualTo(expected);
-        verify(studentRepository).saveAndFlush((any(Student.class)));
+        //create passes List.of() for courses, so the real mapper has an empty list
+        assertThat(result.name()).isEqualTo("Ana");
+        assertThat(result.email()).isEqualTo("ana@uni.bg");
+        assertThat(result.courses()).isEmpty();
+
+        verify(studentRepository).saveAndFlush(studentCaptor.capture());
+
+        Student captured = studentCaptor.getValue();
+
+        assertThat(captured.getName()).isEqualTo("Ana");
+        assertThat(captured.getEmail()).isEqualTo("ana@uni.bg");
     }
 
     @Test
@@ -156,5 +185,65 @@ public class StudentServiceTest {
             .hasMessage("Student with id 1 not found");
 
         verify(studentRepository, never()).delete(any(Student.class));
+    }
+
+    @Test
+    @DisplayName("enroll happy path")
+    void enrollStudentHappyPath() {
+        Student student = new Student("Ana", "ana@uni.bg");
+        ReflectionTestUtils.setField(student, "id", 1L);
+        Department department = new Department("department");
+        OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
+
+        when(studentRepository.findWithCoursesById(1L)).thenReturn(Optional.of(student));
+        when(courseRepository.findWithLockById(2L)).thenReturn(Optional.of(onlineCourse));
+        when(studentRepository.findCourseSummariesByStudentIds(List.of(1L), null))
+                .thenReturn(List.of(new CourseSummaryRow(1L, 2L, "onlineCourse")));
+
+        StudentResponse result = studentService.enroll(1L,2L);
+
+        assertThat(student.getCourses()).contains(onlineCourse);
+        assertThat(onlineCourse.getStudents()).contains(student);
+
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+
+        EnrollStudentEvent event = eventCaptor.getValue();
+
+        assertThat(event.getStudentId()).isEqualTo(1L);
+        assertThat(event.getCourseId()).isEqualTo(2L);
+        assertThat(event.getCourseName()).isEqualTo("onlineCourse");
+
+        assertThat(result.id()).isEqualTo(1L);
+        assertThat(result.name()).isEqualTo("Ana");
+        assertThat(result.courses())
+                .containsExactly(new CourseSummaryResponse(2L, "onlineCourse"));
+
+    }
+
+    @Test
+    @DisplayName("enroll student not found")
+    void enrollStudentNotFound() {
+        when(studentRepository.findWithCoursesById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> studentService.enroll(1L, 2L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Student with id 1 not found");
+
+        verify(eventPublisher, never()).publishEvent(any(EnrollStudentEvent.class));
+    }
+
+    @Test
+    @DisplayName("enroll course not found")
+    void enrollCourseNotFound() {
+        Student student = new Student("Ana", "ana@uni.bg");
+
+        when(studentRepository.findWithCoursesById(1L)).thenReturn(Optional.of(student));
+        when(courseRepository.findWithLockById(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> studentService.enroll(1L, 2L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Course with id 2 not found");
+
+        verify(eventPublisher, never()).publishEvent(any(EnrollStudentEvent.class));
     }
 }
