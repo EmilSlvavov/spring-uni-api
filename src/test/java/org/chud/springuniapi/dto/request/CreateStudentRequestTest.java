@@ -16,7 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class CreateStudentRequestTest {
+class CreateStudentRequestTest {
     private static ValidatorFactory factory; //used to create validator objects
     private static Validator validator; //the object actually doing the validation (using the annotations from the dtos
 
@@ -24,7 +24,7 @@ public class CreateStudentRequestTest {
     @BeforeAll
     static void initValidator(){
         factory = Validation.buildDefaultValidatorFactory(); //gets the default validation system configured for the application
-        validator = factory.getValidator();;
+        validator = factory.getValidator();
     }
 
     //close factory at the end

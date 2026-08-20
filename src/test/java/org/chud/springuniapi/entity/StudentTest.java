@@ -7,18 +7,18 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class StudentTest {
+class StudentTest {
 
-    private Department informatics;
-    private OnsiteCourse databases;
-    private Student ana;
+    private Department department;
+    private OnsiteCourse onsiteCourse;
+    private Student student;
 
     @BeforeEach
     void setup() {
         //Assign
-        informatics = new Department("Informatics");
-        databases = new OnsiteCourse("Databases", informatics, 101L);
-        ana = new Student("Ana", "ana@uni.bg");
+        department = new Department("Informatics");
+        onsiteCourse = new OnsiteCourse("Databases", department, 101L);
+        student = new Student("Ana", "ana@uni.bg");
     }
 
     @Nested
@@ -29,33 +29,33 @@ public class StudentTest {
         @DisplayName("enroll registers the course on the student's side")
         void enrollAddsCourseToStudent() {
             //Act
-            ana.enroll(databases);
+            student.enroll(onsiteCourse);
 
             //Assert
-            assertThat(ana.getCourses()).containsExactly(databases);
+            assertThat(student.getCourses()).containsExactly(onsiteCourse);
         }
 
         @Test
         @DisplayName("enroll registers the student on the course's side")
         void enrollAddsStudentToCourse() {
             //Act
-            ana.enroll(databases);
+            student.enroll(onsiteCourse);
 
             //Assert
-            assertThat(databases.getStudents()).containsExactly(ana);
+            assertThat(onsiteCourse.getStudents()).containsExactly(student);
         }
 
         @Test
         @DisplayName("student can enroll in multiple courses")
         void studentCanEnrollMultipleCourses() {
-            OnlineCourse oop = new OnlineCourse("OOP", informatics, "meethingUrl");
+            OnlineCourse oop = new OnlineCourse("OOP", department, "meethingUrl");
 
             //Act
-            ana.enroll(databases);
-            ana.enroll(oop);
+            student.enroll(onsiteCourse);
+            student.enroll(oop);
 
             //Assert
-            assertThat(ana.getCourses()).hasSize(2);
+            assertThat(student.getCourses()).hasSize(2);
         }
     }
 
@@ -66,27 +66,25 @@ public class StudentTest {
         @Test
         @DisplayName("withdraw removes the course from the student")
         void withdrawRemovesCourseFromStudent() {
-            ana.enroll(databases);
+            student.enroll(onsiteCourse);
 
             //Act
-
-            ana.withdraw(databases);
+            student.withdraw(onsiteCourse);
 
             //Assert
-            assertThat(ana.getCourses()).isEmpty();
+            assertThat(student.getCourses()).isEmpty();
         }
 
         @Test
         @DisplayName("withdraw removes the student from the course")
         void withdrawRemovesStudentFromCourse() {
-            ana.enroll(databases);
+            student.enroll(onsiteCourse);
 
             //Act
-
-            ana.withdraw(databases);
+            student.withdraw(onsiteCourse);
 
             //Assert
-            assertThat(databases.getStudents()).isEmpty();
+            assertThat(onsiteCourse.getStudents()).isEmpty();
         }
     }
 

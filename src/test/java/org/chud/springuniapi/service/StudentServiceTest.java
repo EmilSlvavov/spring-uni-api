@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.chud.springuniapi.application_events.event.EnrollStudentEvent;
-import org.chud.springuniapi.application_events.listener.EnrollListener;
 import org.chud.springuniapi.dto.request.CreateStudentRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
@@ -32,7 +31,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,7 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(MockitoExtension.class)
-public class StudentServiceTest {
+class StudentServiceTest {
 
     @Mock
     private StudentRepository studentRepository;

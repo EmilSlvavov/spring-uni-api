@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(JpaAuditingConfig.class)
-public class StudentRepositoryTest {
+class StudentRepositoryTest {
 
     @Autowired
     private StudentRepository studentRepository;
@@ -54,7 +54,6 @@ public class StudentRepositoryTest {
         Student student = new Student("Ana", "ana@uni.bg");
         studentRepository.saveAndFlush(student);
         Student duplicateEmail = new Student("Anna", "ana@uni.bg");
-        //
 
         assertThatThrownBy(() -> studentRepository.saveAndFlush(duplicateEmail))
                 .isInstanceOf(DataIntegrityViolationException.class);
