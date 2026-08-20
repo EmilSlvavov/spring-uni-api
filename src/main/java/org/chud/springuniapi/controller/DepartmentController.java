@@ -6,7 +6,7 @@ import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
 import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
-import org.chud.springuniapi.service.DepartmentService;
+import org.chud.springuniapi.service.serviceInterface.IDepartmentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +17,9 @@ import java.util.List;
 @RequestMapping("/api/departments")
 public class DepartmentController {
 
-    private final DepartmentService departmentService;
+    private final IDepartmentService departmentService;
 
-    public DepartmentController(DepartmentService departmentService) {
+    public DepartmentController(IDepartmentService departmentService) {
         this.departmentService = departmentService;
     }
 

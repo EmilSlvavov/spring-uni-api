@@ -7,7 +7,7 @@ import org.chud.springuniapi.dto.request.UpdateStudentRequest;
 import org.chud.springuniapi.dto.response.StudentDisplayResponse;
 import org.chud.springuniapi.dto.response.StudentResponse;
 import org.chud.springuniapi.dto.response.StudentSoftDeleteResponse;
-import org.chud.springuniapi.service.StudentService;
+import org.chud.springuniapi.service.serviceInterface.IStudentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,9 +18,9 @@ import java.util.List;
 @RequestMapping("/api/students")
 public class StudentController {
 
-    private final StudentService studentService;
+    private final IStudentService studentService;
 
-    public StudentController(StudentService studentService) {
+    public StudentController(IStudentService studentService) {
         this.studentService = studentService;
     }
 

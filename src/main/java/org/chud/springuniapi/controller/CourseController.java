@@ -7,7 +7,7 @@ import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
-import org.chud.springuniapi.service.CourseService;
+import org.chud.springuniapi.service.serviceInterface.ICourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,9 +18,9 @@ import java.util.List;
 @RequestMapping("/api/courses")
 public class CourseController {
 
-    private final CourseService courseService;
+    private final ICourseService courseService;
 
-    public CourseController(CourseService courseService) {
+    public CourseController(ICourseService courseService) {
         this.courseService = courseService;
     }
 

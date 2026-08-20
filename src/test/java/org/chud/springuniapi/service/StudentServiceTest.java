@@ -62,11 +62,11 @@ public class StudentServiceTest {
 
     @Captor ArgumentCaptor<EnrollStudentEvent> eventCaptor;
 
-    private StudentService studentService;
+    private StudentServiceImpl studentService;
 
     @BeforeEach
     void setUp() {
-        studentService = new StudentService(
+        studentService = new StudentServiceImpl(
                 studentRepository, courseRepository, studentMapper, eventPublisher);
     }
 

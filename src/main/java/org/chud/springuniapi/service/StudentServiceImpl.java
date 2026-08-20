@@ -16,6 +16,7 @@ import org.chud.springuniapi.mapper.StudentMapper;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.StudentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.service.serviceInterface.IStudentService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -27,20 +28,21 @@ import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
-public class StudentService {
+public class StudentServiceImpl implements IStudentService {
 
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
     private final StudentMapper studentMapper;
     private final ApplicationEventPublisher eventPublisher;
 
-    public StudentService(StudentRepository studentRepository, CourseRepository courseRepository, StudentMapper studentMapper, ApplicationEventPublisher eventPublisher) {
+    public StudentServiceImpl(StudentRepository studentRepository, CourseRepository courseRepository, StudentMapper studentMapper, ApplicationEventPublisher eventPublisher) {
         this.studentRepository = studentRepository;
         this.courseRepository = courseRepository;
         this.studentMapper = studentMapper;
         this.eventPublisher = eventPublisher;
     }
 
+    @Override
     public List<StudentResponse> findAll(Boolean deleted) {
         List<Student> students = studentRepository.findAll();
         //get the map of courses filtered by soft delete used to show users with their courses
@@ -51,6 +53,7 @@ public class StudentService {
                 .toList();
     }
 
+    @Override
     public StudentResponse findById(Long id, Boolean deleted) {
         Student student = studentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student", id));
@@ -58,6 +61,7 @@ public class StudentService {
         return studentMapper.toResponse(student, coursesOf(student, deleted));
     }
 
+    @Override
     public List<StudentDisplayResponse> findDisplayLabels() {
         return studentRepository.findAllProjectedBy().stream()
                 .map(view ->
@@ -66,6 +70,7 @@ public class StudentService {
                 .toList();
     }
 
+    @Override
     public List<StudentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted) {
         List<Student> students = studentRepository.findStudentsByDeleted(isDeleted);
         Map<Long, List<CourseSummaryResponse>> coursesByStudent = coursesByStudent(students, null);
@@ -76,6 +81,7 @@ public class StudentService {
     }
 
     //changed method so it checks if it won the race condition and throws if not
+    @Override
     @Transactional
     public StudentResponse create(CreateStudentRequest request) {
         if (studentRepository.existsByEmailIgnoreCase(request.email())) {
@@ -95,6 +101,7 @@ public class StudentService {
         return studentMapper.toResponse(saved, List.of());
     }
 
+    @Override
     @Transactional
     public StudentResponse update(Long id, UpdateStudentRequest request) {
         Student student = studentRepository.findById(id)
@@ -104,6 +111,7 @@ public class StudentService {
         return studentMapper.toResponse(student, coursesOf(student, null));
     }
 
+    @Override
     @Transactional
     public StudentResponse updateProfile(Long id, UpdateStudentProfileRequest request) {
         Student student = studentRepository.findById(id)
@@ -115,6 +123,7 @@ public class StudentService {
         return studentMapper.toResponse(student, coursesOf(student, null));
     }
 
+    @Override
     @Transactional
     public StudentResponse enroll(Long studentId, Long courseId) {
         Student student = studentRepository.findWithCoursesById(studentId)
@@ -130,6 +139,7 @@ public class StudentService {
         return studentMapper.toResponse(student, coursesOf(student, null));
     }
 
+    @Override
     @Transactional
     public StudentResponse withdraw(Long studentId, Long courseId) {
         Student student = studentRepository.findWithCoursesById(studentId)
@@ -143,6 +153,7 @@ public class StudentService {
         return studentMapper.toResponse(student, coursesOf(student, null));
     }
 
+    @Override
     @Transactional
     public void delete(Long id) {
         Student student = studentRepository.findWithCoursesById(id)
@@ -155,6 +166,7 @@ public class StudentService {
         studentRepository.delete(student);
     }
 
+    @Override
     @Transactional
     public StudentSoftDeleteResponse softDelete(Long id) {
         Student student = studentRepository.findById(id)
@@ -164,6 +176,7 @@ public class StudentService {
         return studentMapper.toResponseWithSoftDelete(student, coursesOf(student, null));
     }
 
+    @Override
     @Transactional
     public StudentSoftDeleteResponse restoreSoftDelete(Long id) {
         Student student = studentRepository.findById(id)

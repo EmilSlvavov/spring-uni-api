@@ -15,6 +15,7 @@ import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.DepartmentMapper;
 import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.service.serviceInterface.IDepartmentService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +26,18 @@ import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
-public class DepartmentService {
+public class DepartmentServiceImpl implements IDepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final DepartmentMapper departmentMapper;
 
-    public DepartmentService(DepartmentRepository departmentRepository,
+    public DepartmentServiceImpl(DepartmentRepository departmentRepository,
         DepartmentMapper departmentMapper) {
         this.departmentRepository = departmentRepository;
         this.departmentMapper = departmentMapper;
     }
 
+    @Override
     public List<DepartmentResponse> findAll(Boolean deleted) {
         List<Department> departments = departmentRepository.findAll();
         Map<Long, List<CourseSummaryResponse>> coursesByDepartment = coursesByDepartment(departments, deleted);
@@ -46,6 +48,7 @@ public class DepartmentService {
             .toList();
     }
 
+    @Override
     public DepartmentResponse findById(Long id, Boolean deleted) {
         Department department = departmentRepository.findWithContactsById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Department", id));
@@ -53,6 +56,7 @@ public class DepartmentService {
         return departmentMapper.toResponse(department, coursesOf(department, deleted));
     }
 
+    @Override
     public List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted) {
         return departmentRepository
             .findDepartmentByDeleted(isDeleted)
@@ -62,6 +66,7 @@ public class DepartmentService {
     }
 
     //changed so it checks if it won the race condition and throws if not
+    @Override
     @Transactional
     public DepartmentResponse create(CreateDepartmentRequest request) {
         if (departmentRepository.existsByNameIgnoreCase(request.name())) {
@@ -83,6 +88,7 @@ public class DepartmentService {
         return departmentMapper.toResponse(saved, List.of());
     }
 
+    @Override
     @Transactional
     public DepartmentResponse update(Long id, UpdateDepartmentRequest request) {
         Department department = departmentRepository.findById(id)
@@ -105,6 +111,7 @@ public class DepartmentService {
         return departmentMapper.toResponse(department, coursesOf(department, null));
     }
 
+    @Override
     @Transactional
     public void delete(Long id) {
         Department department = departmentRepository.findById(id)
@@ -119,6 +126,7 @@ public class DepartmentService {
         departmentRepository.delete(department);
     }
 
+    @Override
     @Transactional
     public DepartmentSoftDeleteResponse softDelete(Long id) {
         Department department = departmentRepository.findById(id)
@@ -128,6 +136,7 @@ public class DepartmentService {
         return departmentMapper.toResponseWithSoftDelete(department);
     }
 
+    @Override
     @Transactional
     public DepartmentSoftDeleteResponse restoreSoftDelete(Long id) {
         Department department = departmentRepository.findById(id)
@@ -137,6 +146,7 @@ public class DepartmentService {
         return departmentMapper.toResponseWithSoftDelete(department);
     }
 
+    @Override
     @Transactional
     public DepartmentResponse replaceContacts(Long id, ReplaceContactsRequest request) {
         Department department = departmentRepository.findWithContactsById(id)
