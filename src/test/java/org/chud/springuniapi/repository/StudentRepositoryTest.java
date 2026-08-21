@@ -37,13 +37,16 @@ class StudentRepositoryTest {
         studentRepository.saveAndFlush(student);
         Long id = student.getId();
 
+        String studentName = student.getName();
+        String studentEmail = student.getEmail();
+
         entityManager.flush();
         entityManager.clear();
 
         Student found = studentRepository.findById(id).orElseThrow();
 
-        assertThat(found.getName()).isEqualTo("Ana");
-        assertThat(found.getEmail()).isEqualTo("ana@uni.bg");
+        assertThat(found.getName()).isEqualTo(studentName);
+        assertThat(found.getEmail()).isEqualTo(studentEmail);
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
     }
@@ -53,9 +56,9 @@ class StudentRepositoryTest {
     void saveStudentWithDuplicateEmail() {
         Student student = new Student("Ana", "ana@uni.bg");
         studentRepository.saveAndFlush(student);
-        Student duplicateEmail = new Student("Anna", "ana@uni.bg");
+        Student duplicateEmailStudent = new Student("Anna", "ana@uni.bg");
 
-        assertThatThrownBy(() -> studentRepository.saveAndFlush(duplicateEmail))
+        assertThatThrownBy(() -> studentRepository.saveAndFlush(duplicateEmailStudent))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -91,16 +94,18 @@ class StudentRepositoryTest {
         Long studentId = student.getId();
         Long onlineId  = onlineCourse.getId();
         Long onsiteId  = onsiteCourse.getId();
+        String onlineName = onlineCourse.getName();
+        String onsiteName = onsiteCourse.getName();
 
         assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), false))
-                .containsExactly(new CourseSummaryRow(studentId, onlineId, "onlineCourse"));
+                .containsExactly(new CourseSummaryRow(studentId, onlineId, onlineName));
 
         assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), true))
-                .containsExactly(new CourseSummaryRow(studentId, onsiteId, "onsiteCourse"));
+                .containsExactly(new CourseSummaryRow(studentId, onsiteId, onsiteName));
 
         assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), null))
                 .containsExactlyInAnyOrder(
-                        new CourseSummaryRow(studentId, onlineId, "onlineCourse"),
-                        new CourseSummaryRow(studentId, onsiteId, "onsiteCourse"));
+                        new CourseSummaryRow(studentId, onlineId, onlineName),
+                        new CourseSummaryRow(studentId, onsiteId, onsiteName));
     }
 }

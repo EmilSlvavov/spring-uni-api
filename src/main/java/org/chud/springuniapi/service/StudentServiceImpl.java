@@ -46,10 +46,10 @@ public class StudentServiceImpl implements IStudentService {
     public List<StudentResponse> findAll(Boolean deleted) {
         List<Student> students = studentRepository.findAll();
         //get the map of courses filtered by soft delete used to show users with their courses
-        Map<Long, List<CourseSummaryResponse>> coursesByStudent = coursesByStudent(students, deleted);
+        Map<Long, List<CourseSummaryResponse>> coursesByStudent = listCoursesByStudentId(students, deleted);
 
         return students.stream()
-                .map(student -> studentMapper.toResponse(student, coursesOf(coursesByStudent, student)))
+                .map(student -> studentMapper.toResponse(student, coursesOfForMultipleStudents(coursesByStudent, student)))
                 .toList();
     }
 
@@ -58,7 +58,7 @@ public class StudentServiceImpl implements IStudentService {
         Student student = studentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
-        return studentMapper.toResponse(student, coursesOf(student, deleted));
+        return studentMapper.toResponse(student, coursesOfForSingleStudent(student, deleted));
     }
 
     @Override
@@ -73,10 +73,10 @@ public class StudentServiceImpl implements IStudentService {
     @Override
     public List<StudentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted) {
         List<Student> students = studentRepository.findStudentsByDeleted(isDeleted);
-        Map<Long, List<CourseSummaryResponse>> coursesByStudent = coursesByStudent(students, null);
+        Map<Long, List<CourseSummaryResponse>> coursesByStudent = listCoursesByStudentId(students, null);
 
         return students.stream()
-            .map(student -> studentMapper.toResponseWithSoftDelete(student, coursesOf(coursesByStudent, student)))
+            .map(student -> studentMapper.toResponseWithSoftDelete(student, coursesOfForMultipleStudents(coursesByStudent, student)))
             .toList();
     }
 
@@ -108,7 +108,7 @@ public class StudentServiceImpl implements IStudentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
         student.setName(request.name()); // no save() flush() will save changes
-        return studentMapper.toResponse(student, coursesOf(student, null));
+        return studentMapper.toResponse(student, coursesOfForSingleStudent(student, null));
     }
 
     @Override
@@ -120,7 +120,7 @@ public class StudentServiceImpl implements IStudentService {
         student.setBio(request.bio());
         student.setDateOfBirth(request.dateOfBirth());
 
-        return studentMapper.toResponse(student, coursesOf(student, null));
+        return studentMapper.toResponse(student, coursesOfForSingleStudent(student, null));
     }
 
     @Override
@@ -136,7 +136,7 @@ public class StudentServiceImpl implements IStudentService {
 
         eventPublisher.publishEvent(new EnrollStudentEvent(studentId, courseId, course.getName()));
 
-        return studentMapper.toResponse(student, coursesOf(student, null));
+        return studentMapper.toResponse(student, coursesOfForSingleStudent(student, null));
     }
 
     @Override
@@ -150,7 +150,7 @@ public class StudentServiceImpl implements IStudentService {
         student.withdraw(course); // again dirty checking saves it
         studentRepository.flush(); // drop the join row before we read the summaries back
 
-        return studentMapper.toResponse(student, coursesOf(student, null));
+        return studentMapper.toResponse(student, coursesOfForSingleStudent(student, null));
     }
 
     @Override
@@ -173,7 +173,7 @@ public class StudentServiceImpl implements IStudentService {
             .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
         student.setDeleted(true);
-        return studentMapper.toResponseWithSoftDelete(student, coursesOf(student, null));
+        return studentMapper.toResponseWithSoftDelete(student, coursesOfForSingleStudent(student, null));
     }
 
     @Override
@@ -183,11 +183,11 @@ public class StudentServiceImpl implements IStudentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Student", id));
 
         student.setDeleted(false);
-        return studentMapper.toResponseWithSoftDelete(student, coursesOf(student, null));
+        return studentMapper.toResponseWithSoftDelete(student, coursesOfForSingleStudent(student, null));
     }
 
     //get the courses by student with filter for soft delete value
-    private Map<Long, List<CourseSummaryResponse>> coursesByStudent(List<Student> students, Boolean deleted) {
+    private Map<Long, List<CourseSummaryResponse>> listCoursesByStudentId(List<Student> students, Boolean deleted) {
         //get the ids of the students
         List<Long> ids = students.stream().map(Student::getId).toList();
         if (ids.isEmpty()) { //check for empty list
@@ -204,14 +204,14 @@ public class StudentServiceImpl implements IStudentService {
     // is the student you want the courses of. You get the courses of that student in a list or if
     // there arent any you set his courses to be an empty list
     //used for pulling out one entry after the map is already built
-    private List<CourseSummaryResponse> coursesOf(Map<Long, List<CourseSummaryResponse>> coursesByStudent,
+    private List<CourseSummaryResponse> coursesOfForMultipleStudents(Map<Long, List<CourseSummaryResponse>> coursesByStudent,
                                                   Student student) {
 
         return coursesByStudent.getOrDefault(student.getId(), List.of());
     }
 
     //used for single entity paths which dont deal with multiple students like enroll, update etc.
-    private List<CourseSummaryResponse> coursesOf(Student student, Boolean deleted) {
-        return coursesOf(coursesByStudent(List.of(student), deleted), student);
+    private List<CourseSummaryResponse> coursesOfForSingleStudent(Student student, Boolean deleted) {
+        return coursesOfForMultipleStudents(listCoursesByStudentId(List.of(student), deleted), student);
     }
 }

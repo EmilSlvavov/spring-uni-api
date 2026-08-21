@@ -33,17 +33,18 @@ class StudentControllerTest {
     @Test
     @DisplayName(" get with id returns 200 with student json")
     void getByIdReturnsJsonWithStatusOk() {
-        when(studentService.findById(1L, null)).thenReturn(
-                new StudentResponse(1L, "Ana", "ana@uni.bg", null, null,
-                        List.of(new CourseSummaryResponse(2L, "Databases")))
-        );
+        CourseSummaryResponse course = new CourseSummaryResponse(2L, "Databases");
+        StudentResponse student =
+                new StudentResponse(1L, "Ana", "ana@uni.bg", null, null, List.of(course));
+
+        when(studentService.findById(1L, null)).thenReturn(student);
 
         MvcTestResult result = mockMvc.get().uri("/api/students/1").exchange();
 
         assertThat(result).hasStatusOk();
-        assertThat(result).bodyJson().extractingPath("$.name").isEqualTo("Ana");
-        assertThat(result).bodyJson().extractingPath("$.email").isEqualTo("ana@uni.bg");
-        assertThat(result).bodyJson().extractingPath("$.courses[0].name").isEqualTo("Databases");
+        assertThat(result).bodyJson().extractingPath("$.name").isEqualTo(student.name());
+        assertThat(result).bodyJson().extractingPath("$.email").isEqualTo(student.email());
+        assertThat(result).bodyJson().extractingPath("$.courses[0].name").isEqualTo(course.name());
     }
 
     @Test

@@ -55,12 +55,13 @@ class GlobalExceptionHandlerTest {
         @Test
         @DisplayName("copies the traceId out of MDC into the response")
         void copiesTraceIdFromMdc() {
-            MDC.put(TRACE_ID, "trace-abc");
+            String traceId = "trace-abc";
+            MDC.put(TRACE_ID, traceId);
 
             ProblemDetail problemDetail = handler.handleNotFound(
                     new ResourceNotFoundException("Student", 42L), request);
 
-            assertThat(problemDetail.getProperties()).containsEntry("traceId", "trace-abc");
+            assertThat(problemDetail.getProperties()).containsEntry("traceId", traceId);
         }
     }
 
@@ -82,12 +83,13 @@ class GlobalExceptionHandlerTest {
         @Test
         @DisplayName("copies the traceId out of MDC into the response")
         void copiesTraceIdFromMdc() {
-            MDC.put(TRACE_ID, "trace-xyz");
+            String traceId = "trace-xyz";
+            MDC.put(TRACE_ID, traceId);
 
             ProblemDetail problemDetail = handler.handleDuplicate(
                     new DuplicateResourceException("duplicate"), request);
 
-            assertThat(problemDetail.getProperties()).containsEntry("traceId", "trace-xyz");
+            assertThat(problemDetail.getProperties()).containsEntry("traceId", traceId);
         }
     }
 }

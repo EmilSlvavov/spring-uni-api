@@ -80,8 +80,8 @@ class StudentServiceTest {
         StudentResponse result = studentService.findById(1L, false);
 
         //the real mapper ran, so these are its actual output
-        assertThat(result.name()).isEqualTo("Ana");
-        assertThat(result.email()).isEqualTo("ana@uni.bg");
+        assertThat(result.name()).isEqualTo(student.getName());
+        assertThat(result.email()).isEqualTo(student.getEmail());
         verify(studentRepository).findById(1L);
     }
 
@@ -110,17 +110,18 @@ class StudentServiceTest {
 
         StudentResponse result = studentService.create(request);
 
-        //create passes List.of() for courses, so the real mapper has an empty list
-        assertThat(result.name()).isEqualTo("Ana");
-        assertThat(result.email()).isEqualTo("ana@uni.bg");
+        //result is mapped from the saved entity, so that is what it should carry
+        assertThat(result.name()).isEqualTo(saved.getName());
+        assertThat(result.email()).isEqualTo(saved.getEmail());
         assertThat(result.courses()).isEmpty();
 
         verify(studentRepository).saveAndFlush(studentCaptor.capture());
 
         Student captured = studentCaptor.getValue();
 
-        assertThat(captured.getName()).isEqualTo("Ana");
-        assertThat(captured.getEmail()).isEqualTo("ana@uni.bg");
+        //the captured entity was built from the request, so that is what it should carry
+        assertThat(captured.getName()).isEqualTo(request.name());
+        assertThat(captured.getEmail()).isEqualTo(request.email());
     }
 
     @Test
@@ -209,12 +210,12 @@ class StudentServiceTest {
 
         assertThat(event.getStudentId()).isEqualTo(1L);
         assertThat(event.getCourseId()).isEqualTo(2L);
-        assertThat(event.getCourseName()).isEqualTo("onlineCourse");
+        assertThat(event.getCourseName()).isEqualTo(onlineCourse.getName());
 
-        assertThat(result.id()).isEqualTo(1L);
-        assertThat(result.name()).isEqualTo("Ana");
+        assertThat(result.id()).isEqualTo(student.getId());
+        assertThat(result.name()).isEqualTo(student.getName());
         assertThat(result.courses())
-                .containsExactly(new CourseSummaryResponse(2L, "onlineCourse"));
+                .containsExactly(new CourseSummaryResponse(2L, onlineCourse.getName()));
 
     }
 

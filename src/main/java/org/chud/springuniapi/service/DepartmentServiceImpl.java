@@ -40,11 +40,11 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Override
     public List<DepartmentResponse> findAll(Boolean deleted) {
         List<Department> departments = departmentRepository.findAll();
-        Map<Long, List<CourseSummaryResponse>> coursesByDepartment = coursesByDepartment(departments, deleted);
+        Map<Long, List<CourseSummaryResponse>> coursesByDepartment = listCoursesByDepartmentId(departments, deleted);
 
         return departments.stream()
             .map(department -> departmentMapper.toResponse(department,
-                coursesOf(coursesByDepartment, department)))
+                coursesOfForMultipleDepartments(coursesByDepartment, department)))
             .toList();
     }
 
@@ -53,7 +53,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
         Department department = departmentRepository.findWithContactsById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Department", id));
 
-        return departmentMapper.toResponse(department, coursesOf(department, deleted));
+        return departmentMapper.toResponse(department, coursesOfForSingleDepartment(department, deleted));
     }
 
     @Override
@@ -108,7 +108,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
             throw new DuplicateResourceException(
                 "Department '%s' already exists".formatted(request.name()));
         }
-        return departmentMapper.toResponse(department, coursesOf(department, null));
+        return departmentMapper.toResponse(department, coursesOfForSingleDepartment(department, null));
     }
 
     @Override
@@ -156,11 +156,11 @@ public class DepartmentServiceImpl implements IDepartmentService {
         request.contacts().forEach(c ->
             department.getContacts().add(new ContactInfo(c.type(), c.value())));
 
-        return departmentMapper.toResponse(department, coursesOf(department, null));
+        return departmentMapper.toResponse(department, coursesOfForSingleDepartment(department, null));
     }
 
     //one query for the whole list instead of one per department
-    private Map<Long, List<CourseSummaryResponse>> coursesByDepartment(List<Department> departments,
+    private Map<Long, List<CourseSummaryResponse>> listCoursesByDepartmentId(List<Department> departments,
         Boolean deleted) {
 
         List<Long> ids = departments.stream().map(Department::getId).toList();
@@ -172,11 +172,11 @@ public class DepartmentServiceImpl implements IDepartmentService {
             departmentRepository.findCourseSummariesByDepartmentIds(ids, deleted));
     }
 
-    private List<CourseSummaryResponse> coursesOf(Department department, Boolean deleted) {
-        return coursesOf(coursesByDepartment(List.of(department), deleted), department);
+    private List<CourseSummaryResponse> coursesOfForSingleDepartment(Department department, Boolean deleted) {
+        return coursesOfForMultipleDepartments(listCoursesByDepartmentId(List.of(department), deleted), department);
     }
 
-    private List<CourseSummaryResponse> coursesOf(Map<Long, List<CourseSummaryResponse>> coursesByDepartment,
+    private List<CourseSummaryResponse> coursesOfForMultipleDepartments(Map<Long, List<CourseSummaryResponse>> coursesByDepartment,
         Department department) {
 
         return coursesByDepartment.getOrDefault(department.getId(), List.of());

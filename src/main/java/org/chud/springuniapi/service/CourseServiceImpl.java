@@ -39,10 +39,10 @@ public class CourseServiceImpl implements ICourseService {
     @Override
     public List<CourseResponse> findAll(Boolean deleted) {
         List<Course> courses = courseRepository.findAllWithDepartment();
-        Map<Long, List<StudentSummaryResponse>> studentsByCourse = studentsByCourse(courses, deleted);
+        Map<Long, List<StudentSummaryResponse>> studentsByCourse = listStudentsByCourseId(courses, deleted);
 
         return courses.stream()
-                .map(course -> courseMapper.toResponse(course, studentsOf(studentsByCourse, course)))
+                .map(course -> courseMapper.toResponse(course, studentsOfForMultipleCourses(studentsByCourse, course)))
                 .toList();
     }
 
@@ -51,7 +51,7 @@ public class CourseServiceImpl implements ICourseService {
         Course course = courseRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
-        return courseMapper.toResponse(course, studentsOf(course, deleted));
+        return courseMapper.toResponse(course, studentsOfForSingleCourse(course, deleted));
     }
 
     //Changed ordering to avoid passing existence check even if right after it somebody deletes it
@@ -80,10 +80,10 @@ public class CourseServiceImpl implements ICourseService {
             throw new ResourceNotFoundException("Department", departmentId);
         }
 
-        Map<Long, List<StudentSummaryResponse>> studentsByCourse = studentsByCourse(courses, deleted);
+        Map<Long, List<StudentSummaryResponse>> studentsByCourse = listStudentsByCourseId(courses, deleted);
 
         return courses.stream()
-                .map(course -> courseMapper.toResponse(course, studentsOf(studentsByCourse, course)))
+                .map(course -> courseMapper.toResponse(course, studentsOfForMultipleCourses(studentsByCourse, course)))
                 .toList();
     }
 
@@ -120,7 +120,7 @@ public class CourseServiceImpl implements ICourseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
         course.setName(request.name()); // no save() flush() will save changes
-        return courseMapper.toResponse(course, studentsOf(course, null));
+        return courseMapper.toResponse(course, studentsOfForSingleCourse(course, null));
     }
 
     @Override
@@ -164,7 +164,7 @@ public class CourseServiceImpl implements ICourseService {
     }
 
     //one query for the whole list instead of one per course
-    private Map<Long, List<StudentSummaryResponse>> studentsByCourse(List<Course> courses, Boolean deleted) {
+    private Map<Long, List<StudentSummaryResponse>> listStudentsByCourseId(List<Course> courses, Boolean deleted) {
         List<Long> ids = courses.stream().map(Course::getId).toList();
         if (ids.isEmpty()) {
             return Map.of();
@@ -174,11 +174,11 @@ public class CourseServiceImpl implements ICourseService {
                 courseRepository.findStudentSummariesByCourseIds(ids, deleted));
     }
 
-    private List<StudentSummaryResponse> studentsOf(Course course, Boolean deleted) {
-        return studentsOf(studentsByCourse(List.of(course), deleted), course);
+    private List<StudentSummaryResponse> studentsOfForSingleCourse(Course course, Boolean deleted) {
+        return studentsOfForMultipleCourses(listStudentsByCourseId(List.of(course), deleted), course);
     }
 
-    private List<StudentSummaryResponse> studentsOf(Map<Long, List<StudentSummaryResponse>> studentsByCourse,
+    private List<StudentSummaryResponse> studentsOfForMultipleCourses(Map<Long, List<StudentSummaryResponse>> studentsByCourse,
         Course course) {
 
         return studentsByCourse.getOrDefault(course.getId(), List.of());
