@@ -6,14 +6,14 @@ import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
-import org.chud.springuniapi.dto.response.StudentSummaryResponse;
+import org.chud.springuniapi.dto.response.UserSummaryResponse;
 import org.chud.springuniapi.entity.*;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.CourseMapper;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryView;
-import org.chud.springuniapi.repository.projection.StudentSummaryRow;
+import org.chud.springuniapi.repository.projection.UserSummaryRow;
 import org.chud.springuniapi.service.serviceInterface.ICourseService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,10 +39,10 @@ public class CourseServiceImpl implements ICourseService {
     @Override
     public List<CourseResponse> findAll(Boolean deleted) {
         List<Course> courses = courseRepository.findAllWithDepartment();
-        Map<Long, List<StudentSummaryResponse>> studentsByCourse = listStudentsByCourseId(courses, deleted);
+        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
 
         return courses.stream()
-                .map(course -> courseMapper.toResponse(course, studentsOfForMultipleCourses(studentsByCourse, course)))
+                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
                 .toList();
     }
 
@@ -51,7 +51,7 @@ public class CourseServiceImpl implements ICourseService {
         Course course = courseRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
-        return courseMapper.toResponse(course, studentsOfForSingleCourse(course, deleted));
+        return courseMapper.toResponse(course, usersOfForSingleCourse(course, deleted));
     }
 
     //Changed ordering to avoid passing existence check even if right after it somebody deletes it
@@ -80,10 +80,10 @@ public class CourseServiceImpl implements ICourseService {
             throw new ResourceNotFoundException("Department", departmentId);
         }
 
-        Map<Long, List<StudentSummaryResponse>> studentsByCourse = listStudentsByCourseId(courses, deleted);
+        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
 
         return courses.stream()
-                .map(course -> courseMapper.toResponse(course, studentsOfForMultipleCourses(studentsByCourse, course)))
+                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
                 .toList();
     }
 
@@ -100,7 +100,7 @@ public class CourseServiceImpl implements ICourseService {
     @Transactional
     public CourseResponse createOnline(CreateOnlineCourseRequest request) {
         Department department = requireDepartment(request.departmentId());
-        //a fresh course has no students yet, so there is nothing to query for
+        //a fresh course has no users yet, so there is nothing to query for
         return courseMapper.toResponse(courseRepository.save(
                 new OnlineCourse(request.name(), department, request.meetingUrl())), List.of());
     }
@@ -120,7 +120,7 @@ public class CourseServiceImpl implements ICourseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
         course.setName(request.name()); // no save() flush() will save changes
-        return courseMapper.toResponse(course, studentsOfForSingleCourse(course, null));
+        return courseMapper.toResponse(course, usersOfForSingleCourse(course, null));
     }
 
     @Override
@@ -129,8 +129,8 @@ public class CourseServiceImpl implements ICourseService {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
-        for (Student student : Set.copyOf(course.getStudents())) {
-            student.withdraw(course);
+        for (User user : Set.copyOf(course.getUsers())) {
+            user.withdraw(course);
         }
 
         courseRepository.delete(course);
@@ -164,23 +164,23 @@ public class CourseServiceImpl implements ICourseService {
     }
 
     //one query for the whole list instead of one per course
-    private Map<Long, List<StudentSummaryResponse>> listStudentsByCourseId(List<Course> courses, Boolean deleted) {
+    private Map<Long, List<UserSummaryResponse>> listUsersByCourseId(List<Course> courses, Boolean deleted) {
         List<Long> ids = courses.stream().map(Course::getId).toList();
         if (ids.isEmpty()) {
             return Map.of();
         }
 
-        return StudentSummaryRow.groupByOwner(
-                courseRepository.findStudentSummariesByCourseIds(ids, deleted));
+        return UserSummaryRow.groupByOwner(
+                courseRepository.findUserSummariesByCourseIds(ids, deleted));
     }
 
-    private List<StudentSummaryResponse> studentsOfForSingleCourse(Course course, Boolean deleted) {
-        return studentsOfForMultipleCourses(listStudentsByCourseId(List.of(course), deleted), course);
+    private List<UserSummaryResponse> usersOfForSingleCourse(Course course, Boolean deleted) {
+        return usersOfForMultipleCourses(listUsersByCourseId(List.of(course), deleted), course);
     }
 
-    private List<StudentSummaryResponse> studentsOfForMultipleCourses(Map<Long, List<StudentSummaryResponse>> studentsByCourse,
+    private List<UserSummaryResponse> usersOfForMultipleCourses(Map<Long, List<UserSummaryResponse>> usersByCourse,
         Course course) {
 
-        return studentsByCourse.getOrDefault(course.getId(), List.of());
+        return usersByCourse.getOrDefault(course.getId(), List.of());
     }
 }

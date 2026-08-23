@@ -2,7 +2,7 @@ package org.chud.springuniapi.mapper;
 
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
-import org.chud.springuniapi.dto.response.StudentSummaryResponse;
+import org.chud.springuniapi.dto.response.UserSummaryResponse;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.OnlineCourse;
 import org.chud.springuniapi.entity.OnsiteCourse;
@@ -16,10 +16,10 @@ import java.util.List;
 public interface CourseMapper {
 
     //toResponse mapper with switch case for both online and onsite courses
-    default CourseResponse toResponse(Course course, List<StudentSummaryResponse> studentSummaries) {
+    default CourseResponse toResponse(Course course, List<UserSummaryResponse> userSummaries) {
         return switch (Hibernate.unproxy(course)) {
-            case OnlineCourse online -> toResponse(online, studentSummaries);
-            case OnsiteCourse onsite -> toResponse(onsite, studentSummaries);
+            case OnlineCourse online -> toResponse(online, userSummaries);
+            case OnsiteCourse onsite -> toResponse(onsite, userSummaries);
             default -> throw new IllegalStateException(
                     "Unmapped course subtype: " + course.getClass().getName());
         };
@@ -34,21 +34,21 @@ public interface CourseMapper {
         };
     }
 
-    //toResponse for online, the student list is already filtered by the repository
+    //toResponse for online, the user list is already filtered by the repository
     @Mapping(target = "departmentId", source = "course.department.id")
     @Mapping(target = "departmentName", source = "course.department.name")
     @Mapping(target = "type", constant = "ONLINE")
     @Mapping(target = "roomNumber", ignore = true)
-    @Mapping(target = "students", source = "studentSummaries")
-    CourseResponse toResponse(OnlineCourse course, List<StudentSummaryResponse> studentSummaries);
+    @Mapping(target = "users", source = "userSummaries")
+    CourseResponse toResponse(OnlineCourse course, List<UserSummaryResponse> userSummaries);
 
     //toResponse for onsite
     @Mapping(target = "departmentId", source = "course.department.id")
     @Mapping(target = "departmentName", source = "course.department.name")
     @Mapping(target = "type", constant = "ONSITE")
     @Mapping(target = "meetingUrl", ignore = true)
-    @Mapping(target = "students", source = "studentSummaries")
-    CourseResponse toResponse(OnsiteCourse course, List<StudentSummaryResponse> studentSummaries);
+    @Mapping(target = "users", source = "userSummaries")
+    CourseResponse toResponse(OnsiteCourse course, List<UserSummaryResponse> userSummaries);
 
     @Mapping(target = "departmentId", source = "department.id")
     @Mapping(target = "departmentName", source = "department.name")

@@ -22,10 +22,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(JpaAuditingConfig.class)
-class StudentRepositoryTest {
+class UserRepositoryTest {
 
     @Autowired
-    private StudentRepository studentRepository;
+    private UserRepository userRepository;
 
     @Autowired
     private TestEntityManager entityManager;
@@ -33,32 +33,32 @@ class StudentRepositoryTest {
     @Test
     @DisplayName("save round trip")
     void saveRoundTrip() {
-        Student student = new Student("Ana", "ana@uni.bg");
-        studentRepository.saveAndFlush(student);
-        Long id = student.getId();
+        User user = new User("Ana", "ana@uni.bg");
+        userRepository.saveAndFlush(user);
+        Long id = user.getId();
 
-        String studentName = student.getName();
-        String studentEmail = student.getEmail();
+        String userName = user.getName();
+        String userEmail = user.getEmail();
 
         entityManager.flush();
         entityManager.clear();
 
-        Student found = studentRepository.findById(id).orElseThrow();
+        User found = userRepository.findById(id).orElseThrow();
 
-        assertThat(found.getName()).isEqualTo(studentName);
-        assertThat(found.getEmail()).isEqualTo(studentEmail);
+        assertThat(found.getName()).isEqualTo(userName);
+        assertThat(found.getEmail()).isEqualTo(userEmail);
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
     }
 
     @Test
     @DisplayName("save fails due to duplicate email")
-    void saveStudentWithDuplicateEmail() {
-        Student student = new Student("Ana", "ana@uni.bg");
-        studentRepository.saveAndFlush(student);
-        Student duplicateEmailStudent = new Student("Anna", "ana@uni.bg");
+    void saveUserWithDuplicateEmail() {
+        User user = new User("Ana", "ana@uni.bg");
+        userRepository.saveAndFlush(user);
+        User duplicateEmailUser = new User("Anna", "ana@uni.bg");
 
-        assertThatThrownBy(() -> studentRepository.saveAndFlush(duplicateEmailStudent))
+        assertThatThrownBy(() -> userRepository.saveAndFlush(duplicateEmailUser))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -66,17 +66,17 @@ class StudentRepositoryTest {
     @ValueSource(strings = {"ANA@UNI.BG", "Ana@Uni.Bg", "ana@uni.bg"})
     @DisplayName("existsByEmailIgnoreCase testing inputs")
     void checkExistsByEmailIgnoreCase(String email) {
-        Student student = new Student("Ana", "ana@uni.bg");
-        studentRepository.saveAndFlush(student);
+        User user = new User("Ana", "ana@uni.bg");
+        userRepository.saveAndFlush(user);
         entityManager.clear();
 
-        assertThat(studentRepository.existsByEmailIgnoreCase(email)).isTrue();
+        assertThat(userRepository.existsByEmailIgnoreCase(email)).isTrue();
     }
 
     @Test
-    @DisplayName("get student with courses with the 3 options for listing soft deleted courses")
-    void checkGetStudentWithSoftDeletedCoursesOptions() {
-        Student student = new Student("Ana", "ana@uni.bg");
+    @DisplayName("get user with courses with the 3 options for listing soft deleted courses")
+    void checkGetUserWithSoftDeletedCoursesOptions() {
+        User user = new User("Ana", "ana@uni.bg");
         Department department = entityManager.persistAndFlush(new Department("department"));
         OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
         OnsiteCourse onsiteCourse = new OnsiteCourse("onsiteCourse", department, 509L);
@@ -84,28 +84,28 @@ class StudentRepositoryTest {
         onsiteCourse.setDeleted(true);
         entityManager.persistAndFlush(onlineCourse);
         entityManager.persistAndFlush(onsiteCourse);
-        student.enroll(onlineCourse);
-        student.enroll(onsiteCourse);
-        studentRepository.saveAndFlush(student);
+        user.enroll(onlineCourse);
+        user.enroll(onsiteCourse);
+        userRepository.saveAndFlush(user);
 
         entityManager.flush();
         entityManager.clear();
 
-        Long studentId = student.getId();
+        Long userId = user.getId();
         Long onlineId  = onlineCourse.getId();
         Long onsiteId  = onsiteCourse.getId();
         String onlineName = onlineCourse.getName();
         String onsiteName = onsiteCourse.getName();
 
-        assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), false))
-                .containsExactly(new CourseSummaryRow(studentId, onlineId, onlineName));
+        assertThat(userRepository.findCourseSummariesByUserIds(List.of(userId), false))
+                .containsExactly(new CourseSummaryRow(userId, onlineId, onlineName));
 
-        assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), true))
-                .containsExactly(new CourseSummaryRow(studentId, onsiteId, onsiteName));
+        assertThat(userRepository.findCourseSummariesByUserIds(List.of(userId), true))
+                .containsExactly(new CourseSummaryRow(userId, onsiteId, onsiteName));
 
-        assertThat(studentRepository.findCourseSummariesByStudentIds(List.of(studentId), null))
+        assertThat(userRepository.findCourseSummariesByUserIds(List.of(userId), null))
                 .containsExactlyInAnyOrder(
-                        new CourseSummaryRow(studentId, onlineId, onlineName),
-                        new CourseSummaryRow(studentId, onsiteId, onsiteName));
+                        new CourseSummaryRow(userId, onlineId, onlineName),
+                        new CourseSummaryRow(userId, onsiteId, onsiteName));
     }
 }

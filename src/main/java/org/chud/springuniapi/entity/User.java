@@ -11,18 +11,18 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "students")
+@Table(name = "users")
 //Secondary table, separate table -> one class; they both share primary key
 //Always join on read, no lazy loading for a secondary table so lost time per
 //read. Inserts and update go to both tables
 @SecondaryTable(
-        name = "student_profiles",
-        pkJoinColumns = @PrimaryKeyJoinColumn(name = "student_id")
+        name = "user_profiles",
+        pkJoinColumns = @PrimaryKeyJoinColumn(name = "user_id")
 )
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Student extends BaseEntity{
+public class User extends BaseEntity{
 
 
     @Column(nullable = false, length = 120)
@@ -33,32 +33,32 @@ public class Student extends BaseEntity{
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "student_courses",
-            joinColumns = @JoinColumn(name = "student_id"),
+            name = "user_courses",
+            joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "course_id")
     )
     private Set<Course> courses = new HashSet<>();
 
-    @Column(table = "student_profiles", length = 2000)
+    @Column(table = "user_profiles", length = 2000)
     private String bio;
 
-    @Column(table = "student_profiles")
+    @Column(table = "user_profiles")
     private LocalDate dateOfBirth;
 
 
-    public Student(String name, String email) {
+    public User(String name, String email) {
         this.name = name;
         this.email = email;
     }
 
     public void enroll(Course course) {
         courses.add(course);
-        course.getStudents().add(this);
+        course.getUsers().add(this);
     }
 
     public void withdraw(Course course) {
         courses.remove(course);
-        course.getStudents().remove(this);
+        course.getUsers().remove(this);
     }
 
 }

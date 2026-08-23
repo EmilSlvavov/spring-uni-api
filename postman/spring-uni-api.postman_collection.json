@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "spring-uni-api",
-    "description": "University Management API - full coverage.\n\nCovers all 28 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (student profile; the student_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/students/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its students, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\nRun top to bottom; folders 5 and 6 restore every flag they set, and Cleanup removes everything it created.",
+    "description": "University Management API - full coverage.\n\nCovers all 28 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (user profile; the user_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/users/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its users, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\nRun top to bottom; folders 5 and 6 restore every flag they set, and Cleanup removes everything it created.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,10 +10,10 @@
     { "key": "departmentName", "value": "" },
     { "key": "courseId", "value": "" },
     { "key": "onsiteCourseId", "value": "" },
-    { "key": "studentId", "value": "" },
+    { "key": "userId", "value": "" },
     { "key": "throwawayDepartmentId", "value": "" },
     { "key": "throwawayCourseId", "value": "" },
-    { "key": "throwawayStudentId", "value": "" }
+    { "key": "throwawayUserId", "value": "" }
   ],
   "item": [
     {
@@ -227,7 +227,7 @@
             "    });",
             "});",
             "// CHECK THE SQL: this should select roughly c.id, c.name, d.name -",
-            "// three columns, not select *. Compare with GET /api/students/display."
+            "// three columns, not select *. Compare with GET /api/users/display."
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": {
@@ -285,10 +285,10 @@
       ]
     },
     {
-      "name": "3 Students (+ @SecondaryTable profile + open projection)",
+      "name": "3 Users (+ @SecondaryTable profile + open projection)",
       "item": [
         {
-          "name": "POST /api/students - create",
+          "name": "POST /api/users - create",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('201 Created', () => pm.response.to.have.status(201));",
             "const body = pm.response.json();",
@@ -297,29 +297,29 @@
             "    pm.expect(body).to.not.have.property('bio');",
             "    pm.expect(body).to.not.have.property('dateOfBirth');",
             "});",
-            "// SSMS: SELECT * FROM student_profiles -> still 0 rows.",
+            "// SSMS: SELECT * FROM user_profiles -> still 0 rows.",
             "// Hibernate skips the secondary insert while every column is null.",
-            "pm.collectionVariables.set('studentId', body.id);"
+            "pm.collectionVariables.set('userId', body.id);"
           ] } }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
-          "name": "GET /api/students - list all",
+          "name": "GET /api/users - list all",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "// SQL to expect: ONE select joining student_courses (the @EntityGraph)",
-            "// plus a join to student_profiles (the @SecondaryTable)."
+            "// SQL to expect: ONE select joining user_courses (the @EntityGraph)",
+            "// plus a join to user_profiles (the @SecondaryTable)."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] } }
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] } }
         },
         {
-          "name": "PUT /api/students/{id} - rename",
+          "name": "PUT /api/users/{id} - rename",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('name was changed', () => pm.expect(pm.response.json().name).to.eql('Ana Petrova-Ivanova'));"
@@ -328,39 +328,39 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova-Ivanova\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] }
           }
         },
         {
-          "name": "PUT /api/students/{id}/profile - first write creates the secondary row",
+          "name": "PUT /api/users/{id}/profile - first write creates the secondary row",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('bio stored', () => pm.expect(body.bio).to.eql('Third-year CS student.'));",
+            "pm.test('bio stored', () => pm.expect(body.bio).to.eql('Third-year CS user.'));",
             "pm.test('dateOfBirth stored as ISO date', () => pm.expect(body.dateOfBirth).to.eql('2003-04-11'));",
-            "// SSMS NOW: SELECT * FROM student_profiles -> 1 row.",
-            "// Watch the SQL for an INSERT into student_profiles, not an UPDATE."
+            "// SSMS NOW: SELECT * FROM user_profiles -> 1 row.",
+            "// Watch the SQL for an INSERT into user_profiles, not an UPDATE."
           ] } }],
           "request": {
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Third-year CS student.\",\n  \"dateOfBirth\": \"2003-04-11\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Third-year CS user.\",\n  \"dateOfBirth\": \"2003-04-11\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
-          "name": "GET /api/students/{id} - profile read back from the secondary table",
+          "name": "GET /api/users/{id} - profile read back from the secondary table",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('bio persisted across the request', () => pm.expect(body.bio).to.eql('Third-year CS student.'));",
+            "pm.test('bio persisted across the request', () => pm.expect(body.bio).to.eql('Third-year CS user.'));",
             "pm.test('dateOfBirth persisted', () => pm.expect(body.dateOfBirth).to.eql('2003-04-11'));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] } }
         },
         {
-          "name": "PUT /api/students/{id}/profile - PUT replaces (omitted field becomes null)",
+          "name": "PUT /api/users/{id}/profile - PUT replaces (omitted field becomes null)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
@@ -371,11 +371,11 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Updated bio.\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
-          "name": "GET /api/students/display - OPEN projection",
+          "name": "GET /api/users/display - OPEN projection",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const items = pm.response.json();",
@@ -390,33 +390,33 @@
             "pm.test('no proxy internals leaked', () => {",
             "    items.forEach(i => pm.expect(i).to.not.have.property('target'));",
             "});",
-            "// CHECK THE SQL: this selects EVERY student column and joins",
-            "// student_profiles too - even though the response uses only name+email.",
+            "// CHECK THE SQL: this selects EVERY user column and joins",
+            "// user_profiles too - even though the response uses only name+email.",
             "// That is the cost of an open (@Value/SpEL) projection."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/display", "host": ["{{baseUrl}}"], "path": ["api", "students", "display"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/display", "host": ["{{baseUrl}}"], "path": ["api", "users", "display"] } }
         },
         {
-          "name": "POST /api/students - create throwaway (for the delete below)",
+          "name": "POST /api/users - create throwaway (for the delete below)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('201 Created', () => pm.response.to.have.status(201));",
-            "pm.collectionVariables.set('throwawayStudentId', pm.response.json().id);"
+            "pm.collectionVariables.set('throwawayUserId', pm.response.json().id);"
           ] } }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway Student\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway User\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
-          "name": "DELETE /api/students/{id}",
+          "name": "DELETE /api/users/{id}",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{throwawayStudentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{throwawayStudentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{throwawayUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{throwawayUserId}}"] } }
         }
       ]
     },
@@ -427,27 +427,27 @@
           "name": "POST enroll in the ONLINE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('course now appears on the student', () => {",
+            "pm.test('course now appears on the user', () => {",
             "    const expected = Number(pm.collectionVariables.get('courseId'));",
             "    pm.expect(pm.response.json().courses.map(c => c.id)).to.include(expected);",
             "});"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{courseId}}"] } }
         },
         {
           "name": "POST enroll in the ONSITE course (subtypes share the join table)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('student is now in both courses', () => {",
+            "pm.test('user is now in both courses', () => {",
             "    const ids = pm.response.json().courses.map(c => c.id);",
             "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId')));",
             "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('onsiteCourseId')));",
             "});",
-            "// student_courses is inherited from Course, so one join table serves both subtypes."
+            "// user_courses is inherited from Course, so one join table serves both subtypes."
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         },
         {
           "name": "POST enroll again - idempotent (Set semantics)",
@@ -459,7 +459,7 @@
             "});"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{courseId}}"] } }
         },
         {
           "name": "DELETE withdraw from the ONSITE course",
@@ -472,7 +472,7 @@
             "});"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         }
       ]
     },
@@ -596,53 +596,53 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{courseId}}"] } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - flag the student",
+          "name": "DELETE /api/users/softDeleted/{id} - flag the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
             "pm.test('flag flipped to true', () => pm.expect(body.isDeleted).to.be.true);",
             "pm.test('enrollments still mapped', () => pm.expect(body.courses.map(c => c.id)).to.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('secondary-table bio still mapped', () => pm.expect(body.bio).to.eql('Updated bio.'));",
-            "// The student keeps their student_courses rows - flagging changes one column."
+            "// The user keeps their user_courses rows - flagging changes one column."
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/true - listed with profile and courses",
+          "name": "GET /api/users/softDeleted/true - listed with profile and courses",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const rows = pm.response.json();",
-            "const mine = rows.find(s => s.id === Number(pm.collectionVariables.get('studentId')));",
-            "pm.test('our student is listed', () => pm.expect(mine).to.not.be.undefined);",
+            "const mine = rows.find(s => s.id === Number(pm.collectionVariables.get('userId')));",
+            "pm.test('our user is listed', () => pm.expect(mine).to.not.be.undefined);",
             "pm.test('courses fetched by the @EntityGraph', () => pm.expect(mine.courses).to.be.an('array').that.is.not.empty);",
             "pm.test('dateOfBirth key still absent - JsonInclude NON_NULL', () => pm.expect(mine).to.not.have.property('dateOfBirth'));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "true"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "true"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/false - no longer in the active list",
+          "name": "GET /api/users/softDeleted/false - no longer in the active list",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('our student dropped out of this list', () => {",
+            "pm.test('our user dropped out of this list', () => {",
             "    const ids = pm.response.json().map(s => s.id);",
-            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('studentId')));",
+            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('userId')));",
             "});",
-            "// But GET /api/students and GET /api/students/display still return them."
+            "// But GET /api/users and GET /api/users/display still return them."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "false"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "false"] } }
         },
         {
-          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/users/softDeleted/{id} - restore the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag flipped back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);",
             "// Everything is left exactly as folders 6 and 7 expect it."
           ] } }],
           "request": { "method": "PATCH", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         }
       ]
     },
@@ -723,47 +723,47 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "POST re-enroll the student in the ONSITE course",
+          "name": "POST re-enroll the user in the ONSITE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "// Folder 4 withdrew this enrolment; we need it back so the course",
-            "// below actually has students to filter."
+            "// below actually has users to filter."
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - flag the student",
+          "name": "DELETE /api/users/softDeleted/{id} - flag the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('student flagged', () => pm.expect(pm.response.json().isDeleted).to.be.true);"
+            "pm.test('user flagged', () => pm.expect(pm.response.json().isDeleted).to.be.true);"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/courses/{id} - no parameter shows the soft-deleted student",
+          "name": "GET /api/courses/{id} - no parameter shows the soft-deleted user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('students are exposed on a course now', () => pm.expect(body.students).to.be.an('array'));",
-            "pm.test('the flagged student is still listed', () => {",
-            "    pm.expect(body.students.map(s => s.id)).to.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('users are exposed on a course now', () => pm.expect(body.users).to.be.an('array'));",
+            "pm.test('the flagged user is still listed', () => {",
+            "    pm.expect(body.users.map(s => s.id)).to.include(Number(pm.collectionVariables.get('userId')));",
             "});",
-            "pm.test('nested students are flat summaries - no recursion', () => {",
-            "    body.students.forEach(s => pm.expect(s).to.not.have.property('courses'));",
+            "pm.test('nested users are flat summaries - no recursion', () => {",
+            "    body.users.forEach(s => pm.expect(s).to.not.have.property('courses'));",
             "});"
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": { "raw": "{{baseUrl}}/api/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "GET /api/courses/{id}?deleted=false - active students only",
+          "name": "GET /api/courses/{id}?deleted=false - active users only",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('flagged student filtered out', () => {",
-            "    const ids = pm.response.json().students.map(s => s.id);",
-            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('flagged user filtered out', () => {",
+            "    const ids = pm.response.json().users.map(s => s.id);",
+            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('userId')));",
             "});"
           ] } }],
           "request": { "method": "GET", "header": [],
@@ -774,12 +774,12 @@
             } }
         },
         {
-          "name": "GET /api/courses/{id}?deleted=true - soft-deleted students only",
+          "name": "GET /api/courses/{id}?deleted=true - soft-deleted users only",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('only the flagged student', () => {",
-            "    const ids = pm.response.json().students.map(s => s.id);",
-            "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('only the flagged user', () => {",
+            "    const ids = pm.response.json().users.map(s => s.id);",
+            "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('userId')));",
             "});",
             "// The course is active - again, the flag describes the nested rows."
           ] } }],
@@ -791,16 +791,16 @@
             } }
         },
         {
-          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/users/softDeleted/{id} - restore the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
           ] } }],
           "request": { "method": "PATCH", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/students/{id}?deleted=true - the student side of the same switch",
+          "name": "GET /api/users/{id}?deleted=true - the user side of the same switch",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('no soft-deleted courses right now, so the list is empty', () => {",
@@ -811,8 +811,8 @@
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/students/{{studentId}}?deleted=true",
-              "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"],
+              "raw": "{{baseUrl}}/api/users/{{userId}}?deleted=true",
+              "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"],
               "query": [{ "key": "deleted", "value": "true" }]
             } }
         },
@@ -827,7 +827,7 @@
             "});"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         }
       ]
     },
@@ -848,7 +848,7 @@
             "url": { "raw": "{{baseUrl}}/api/departments/999999", "host": ["{{baseUrl}}"], "path": ["api", "departments", "999999"] } }
         },
         {
-          "name": "POST student with invalid email -> 400",
+          "name": "POST user with invalid email -> 400",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
             "pm.test('both field errors listed', () => {",
@@ -861,7 +861,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"name\": \"\",\n  \"email\": \"not-an-email\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
@@ -874,7 +874,7 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Time traveller.\",\n  \"dateOfBirth\": \"2999-01-01\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
@@ -981,12 +981,12 @@
           }
         },
         {
-          "name": "POST enroll missing student -> 404",
+          "name": "POST enroll missing user -> 404",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/999999/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "999999", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/999999/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "999999", "courses", "{{courseId}}"] } }
         },
         {
           "name": "POST enroll in missing course -> 404",
@@ -994,7 +994,7 @@
             "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/999999", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "999999"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/999999", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "999999"] } }
         },
         {
           "name": "DELETE soft delete on a missing department -> 404",
@@ -1006,14 +1006,14 @@
             "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/999999", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "999999"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/maybe -> 400 (path variable is a boolean)",
+          "name": "GET /api/users/softDeleted/maybe -> 400 (path variable is a boolean)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
             "// Spring cannot bind 'maybe' to boolean, so it never reaches the service.",
             "// Only true/false (and 1/0, on/off, yes/no) are accepted."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/maybe", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "maybe"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/maybe", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "maybe"] } }
         }
       ]
     },
@@ -1021,7 +1021,7 @@
       "name": "8 Cleanup",
       "item": [
         {
-          "name": "DELETE department (cascades to both courses, student still enrolled)",
+          "name": "DELETE department (cascades to both courses, user still enrolled)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));",
             "// Exercises the unenrollment loop in DepartmentService.delete and",
@@ -1031,13 +1031,13 @@
             "url": { "raw": "{{baseUrl}}/api/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "{{departmentId}}"] } }
         },
         {
-          "name": "DELETE student",
+          "name": "DELETE user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));",
-            "// SSMS afterwards: student_profiles should be empty again."
+            "// SSMS afterwards: user_profiles should be empty again."
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] } }
         }
       ]
     }

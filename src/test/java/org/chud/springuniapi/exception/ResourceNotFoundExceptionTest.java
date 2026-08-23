@@ -14,7 +14,7 @@ class ResourceNotFoundExceptionTest {
     // JUnit converts column 2 to Long because the parameter is declared as Long.
     @ParameterizedTest(name = "{0} with id {1}")
     @CsvSource({
-            "Student,    42,   Student with id 42 not found",
+            "User,    42,   User with id 42 not found",
             "Course,     1,    Course with id 1 not found",
             "Department, 999,  Department with id 999 not found"
     })
@@ -31,10 +31,10 @@ class ResourceNotFoundExceptionTest {
     void isThrowableAndCarriesItsMessage() {
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> { throw new ResourceNotFoundException("Student", 42L); }
+                () -> { throw new ResourceNotFoundException("User", 42L); }
         );
 
-        assertThat(ex.getMessage()).isEqualTo("Student with id 42 not found");
+        assertThat(ex.getMessage()).isEqualTo("User with id 42 not found");
     }
 
     @Test

@@ -9,7 +9,7 @@ import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.chud.springuniapi.entity.ContactInfo;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Department;
-import org.chud.springuniapi.entity.Student;
+import org.chud.springuniapi.entity.User;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.DepartmentMapper;
@@ -118,8 +118,8 @@ public class DepartmentServiceImpl implements IDepartmentService {
             .orElseThrow(() -> new ResourceNotFoundException("Department", id));
 
         for (Course course : department.getCourses()) {
-            for (Student student : Set.copyOf(course.getStudents())) {
-                student.withdraw(course);
+            for (User user : Set.copyOf(course.getUsers())) {
+                user.withdraw(course);
             }
         }
 

@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface ICourseService {
 
-    //deleted = null means the ?deleted param was absent, so the students are not filtered
+    //deleted = null means the ?deleted param was absent, so the users are not filtered
     List<CourseResponse> findAll(Boolean deleted);
 
     CourseResponse findById(Long id, Boolean deleted);

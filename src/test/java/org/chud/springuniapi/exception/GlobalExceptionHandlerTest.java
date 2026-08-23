@@ -26,7 +26,7 @@ class GlobalExceptionHandlerTest {
         // The handler only reads getMethod() and getRequestURI() for its log line.
         request = new MockHttpServletRequest();
         request.setMethod("GET");
-        request.setRequestURI("/api/students/42");
+        request.setRequestURI("/api/users/42");
     }
 
     // MDC is thread local. Without this, a traceId set in one test
@@ -44,7 +44,7 @@ class GlobalExceptionHandlerTest {
         @DisplayName("returns 404 with the Resource Not Found title")
         void returns404() {
             ProblemDetail problemDetail = handler.handleNotFound(
-                    new ResourceNotFoundException("Student", 42L), request);
+                    new ResourceNotFoundException("User", 42L), request);
 
             // getStatus() is an int, not an HttpStatus
             assertThat(problemDetail.getStatus()).isEqualTo(404);
@@ -59,7 +59,7 @@ class GlobalExceptionHandlerTest {
             MDC.put(TRACE_ID, traceId);
 
             ProblemDetail problemDetail = handler.handleNotFound(
-                    new ResourceNotFoundException("Student", 42L), request);
+                    new ResourceNotFoundException("User", 42L), request);
 
             assertThat(problemDetail.getProperties()).containsEntry("traceId", traceId);
         }

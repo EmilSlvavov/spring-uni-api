@@ -2,7 +2,7 @@ package org.chud.springuniapi.repository.projection;
 
 import org.springframework.beans.factory.annotation.Value;
 
-public interface StudentDisplayView {
+public interface UserDisplayView {
     String getName();
 
     //open projection
