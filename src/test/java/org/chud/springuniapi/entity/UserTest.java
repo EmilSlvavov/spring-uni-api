@@ -1,5 +1,6 @@
 package org.chud.springuniapi.entity;
 
+import org.chud.springuniapi.enums.RoleName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,7 +19,10 @@ class UserTest {
         //Assign
         department = new Department("Informatics");
         onsiteCourse = new OnsiteCourse("Databases", department, 101L);
-        user = new User("Ana", "ana@uni.bg");
+        user = new User("Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
     }
 
     @Nested
@@ -92,10 +96,14 @@ class UserTest {
     @DisplayName("new user doesnt have courses")
     void newUserHasNoCourses() {
         //Assign
-        User ana = new User("Ana", "ana@uni.bg");
+        User user1 = new User(
+                "Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
 
         //Assert
-        assertThat(ana.getCourses()).isEmpty();
+        assertThat(user1.getCourses()).isEmpty();
 
     }
 }

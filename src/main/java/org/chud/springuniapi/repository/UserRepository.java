@@ -1,6 +1,7 @@
 package org.chud.springuniapi.repository;
 
 import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
 import org.chud.springuniapi.repository.projection.UserDisplayView;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -25,8 +26,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findUsersByDeleted(boolean isDeleted);
 
-    //The soft delete filter lives here instead of in the mapper. deleted = null
-    //means "do not filter", which is what the ?deleted query param does when it is absent.
+    //The soft delete filter lives here instead of in the mapper. enabled = null
+    //means "do not filter", which is what the ?enabled query param does when it is absent.
     @Query("""
             select new org.chud.springuniapi.repository.projection.CourseSummaryRow(s.id, c.id, c.name)
             from User s
@@ -36,4 +37,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
             order by s.id, c.id
             """)
     List<CourseSummaryRow> findCourseSummariesByUserIds(Collection<Long> userIds, Boolean deleted);
+
+    Optional<User> findUserByEmailIgnoreCase(String email);
+
+    @Query("select u.role.roleName from User u where u.id = :id")
+    Optional<RoleName> findRoleNameByUserId(Long id);
 }

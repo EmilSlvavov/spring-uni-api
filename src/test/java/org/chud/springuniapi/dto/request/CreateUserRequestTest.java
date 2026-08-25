@@ -8,6 +8,8 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.util.List;
 import java.util.Set;
+
+import org.chud.springuniapi.enums.RoleName;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +44,10 @@ class CreateUserRequestTest {
     @Test
     @DisplayName("good request")
     void goodRequest(){
-        CreateUserRequest request = new CreateUserRequest("Ana", "ana@abv.bg");
+        CreateUserRequest request = new CreateUserRequest("Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(request);
 
@@ -53,7 +58,10 @@ class CreateUserRequestTest {
     @DisplayName("reject non valid emails")
     @ValueSource(strings = {"em @ail.com", "ana@", "@gmail.com", "noemail", "double@@uni.bg"})
     void rejectNonValidEmail(String email){
-        CreateUserRequest request = new CreateUserRequest("Ana", email);
+        CreateUserRequest request = new CreateUserRequest("Ana",
+                email,
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(request);
 
@@ -65,7 +73,11 @@ class CreateUserRequestTest {
     @ValueSource(strings = {" ", "\t", "\n"})
     @NullAndEmptySource
     void rejectBlankName(String name){
-        CreateUserRequest request = new CreateUserRequest(name, "email@abv.bg");
+        CreateUserRequest request = new CreateUserRequest(
+                name,
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(request);
 
@@ -77,7 +89,11 @@ class CreateUserRequestTest {
     void rejectTooLongName(){
         String name = "a".repeat(121);
 
-        CreateUserRequest request = new CreateUserRequest(name, "email@abv.bg");
+        CreateUserRequest request = new CreateUserRequest(
+                name,
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(request);
 
@@ -87,7 +103,11 @@ class CreateUserRequestTest {
     @Test
     @DisplayName("a name of exactly 120 characters is accepted")
     void acceptsNameAtMaxLength() {
-        CreateUserRequest request = new CreateUserRequest("a".repeat(120), "email@abv.bg");
+        CreateUserRequest request = new CreateUserRequest(
+                "a".repeat(120),
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         Set<ConstraintViolation<CreateUserRequest>> violations = validator.validate(request);
 

@@ -2,6 +2,7 @@ package org.chud.springuniapi.service;
 
 import org.chud.springuniapi.application_events.event.EnrollUserEvent;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
+import org.chud.springuniapi.dto.request.RegisterRequest;
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
@@ -9,16 +10,20 @@ import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
 import org.chud.springuniapi.entity.Course;
+import org.chud.springuniapi.entity.Role;
 import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.repository.CourseRepository;
+import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,12 +39,21 @@ public class UserServiceImpl implements IUserService {
     private final CourseRepository courseRepository;
     private final UserMapper userMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserServiceImpl(UserRepository userRepository, CourseRepository courseRepository, UserMapper userMapper, ApplicationEventPublisher eventPublisher) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            CourseRepository courseRepository,
+            UserMapper userMapper,
+            ApplicationEventPublisher eventPublisher,
+            RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.userMapper = userMapper;
         this.eventPublisher = eventPublisher;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -49,7 +63,11 @@ public class UserServiceImpl implements IUserService {
         Map<Long, List<CourseSummaryResponse>> coursesByUser = listCoursesByUserId(users, deleted);
 
         return users.stream()
-                .map(user -> userMapper.toResponse(user, coursesOfForMultipleUsers(coursesByUser, user)))
+                .map(user -> userMapper.toResponse(
+                        user,
+                        coursesOfForMultipleUsers(
+                                coursesByUser,
+                                user)))
                 .toList();
     }
 
@@ -76,8 +94,12 @@ public class UserServiceImpl implements IUserService {
         Map<Long, List<CourseSummaryResponse>> coursesByUser = listCoursesByUserId(users, null);
 
         return users.stream()
-            .map(user -> userMapper.toResponseWithSoftDelete(user, coursesOfForMultipleUsers(coursesByUser, user)))
-            .toList();
+                .map(user -> userMapper.toResponseWithSoftDelete(
+                        user,
+                        coursesOfForMultipleUsers(
+                                coursesByUser,
+                                user)))
+                .toList();
     }
 
     //changed method so it checks if it won the race condition and throws if not
@@ -89,9 +111,20 @@ public class UserServiceImpl implements IUserService {
                     "Email '%s' is already registered".formatted(request.email()));
         }
 
+        Role role = roleRepository.findByRoleName(request.role())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role %s is not seeded".formatted(request.role())));
+
+        String password = passwordEncoder.encode(request.password());
+
         User saved;
-        try{
-            saved = userRepository.saveAndFlush(new User(request.name(), request.email()));
+        try {
+            saved = userRepository.saveAndFlush(
+                    new User(
+                            request.name(),
+                            request.email(),
+                            password,
+                            role));
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateResourceException(
                     "Email '%s' is already registered".formatted(request.email())
@@ -155,6 +188,17 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
+    public UserResponse register(RegisterRequest request) {
+
+        return create(new CreateUserRequest(
+                request.name(),
+                request.email(),
+                request.password(),
+                RoleName.STUDENT));
+    }
+
+    @Override
+    @Transactional
     public void delete(Long id) {
         User user = userRepository.findWithCoursesById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
@@ -170,7 +214,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserSoftDeleteResponse softDelete(Long id) {
         User user = userRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("User", id));
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
         user.setDeleted(true);
         return userMapper.toResponseWithSoftDelete(user, coursesOfForSingleUser(user, null));
@@ -205,7 +249,7 @@ public class UserServiceImpl implements IUserService {
     // there arent any you set his courses to be an empty list
     //used for pulling out one entry after the map is already built
     private List<CourseSummaryResponse> coursesOfForMultipleUsers(Map<Long, List<CourseSummaryResponse>> coursesByUser,
-                                                  User user) {
+                                                                  User user) {
 
         return coursesByUser.getOrDefault(user.getId(), List.of());
     }

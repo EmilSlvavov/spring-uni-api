@@ -20,7 +20,7 @@
         <!-- config on when to start a new file and how to call the old one. %d{yyyy-MM-dd} sets when we
         make a new file. Its every day since the smallest unit in the pattern is day. Previous day file
         get renamed to "exceptions.yyyy-mm-dd.log" and the new exceptions.log starts empty. We set max
-         history to 7 days so we keep maximum 7 archives of logs and prvious ones get deleted.-->
+         history to 7 days so we keep maximum 7 archives of logs and prvious ones get enabled.-->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/exceptions.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>

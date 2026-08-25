@@ -5,6 +5,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.chud.springuniapi.enums.RoleName;
+import org.chud.springuniapi.exception.BusinessRuleViolationException;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -45,13 +47,25 @@ public class User extends BaseEntity{
     @Column(table = "user_profiles")
     private LocalDate dateOfBirth;
 
+    @Column(name = "password_hash", nullable = false, length = 100)
+    private String password;
 
-    public User(String name, String email) {
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "role_id", nullable = false)
+    private Role role;
+
+
+    public User(String name, String email, String password, Role role) {
         this.name = name;
         this.email = email;
+        this.password = password;
+        this.role = role;
     }
 
     public void enroll(Course course) {
+        if (isAdmin()) {
+            throw new BusinessRuleViolationException("an ADMIN cannot be enrolled in courses");
+        }
         courses.add(course);
         course.getUsers().add(this);
     }
@@ -59,6 +73,10 @@ public class User extends BaseEntity{
     public void withdraw(Course course) {
         courses.remove(course);
         course.getUsers().remove(this);
+    }
+
+    public boolean isAdmin() {
+        return this.role.getRoleName() == RoleName.ADMIN;
     }
 
 }

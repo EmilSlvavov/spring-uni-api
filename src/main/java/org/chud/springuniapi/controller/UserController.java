@@ -8,8 +8,10 @@ import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
+import org.chud.springuniapi.validation.NotAdmin;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +31,7 @@ public class UserController {
         return userService.findAll(deleted);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @GetMapping("/{id}")
     public UserResponse getById(@PathVariable Long id, @RequestParam(required = false) Boolean deleted) {
         return userService.findById(id, deleted);
@@ -44,17 +47,20 @@ public class UserController {
         return  userService.findAllBySoftDeleted(isDeleted);
     }
 
+
     @PostMapping
     public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
         UserResponse created = userService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#userId, authentication)")
     @PostMapping("/{userId}/courses/{courseId}")
-    public UserResponse enroll(@PathVariable Long userId, @PathVariable Long courseId) {
+    public UserResponse enroll(@NotAdmin @PathVariable Long userId, @PathVariable Long courseId) {
         return userService.enroll(userId, courseId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @PutMapping("/{id}")
     public UserResponse update(
             @PathVariable Long id,
@@ -63,6 +69,7 @@ public class UserController {
         return userService.update(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @PutMapping("/{id}/profile")
     public UserResponse updateProfile(
             @PathVariable Long id,
@@ -71,17 +78,20 @@ public class UserController {
         return userService.updateProfile(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         userService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#userId, authentication)")
     @DeleteMapping("/{userId}/courses/{courseId}")
     public UserResponse withdraw(@PathVariable Long userId, @PathVariable Long courseId) {
         return userService.withdraw(userId, courseId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @DeleteMapping("/softDeleted/{id}")
     public UserSoftDeleteResponse softDelete(@PathVariable Long id) {
         return userService.softDelete(id);

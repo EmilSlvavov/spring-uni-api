@@ -38,7 +38,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     List<Course> findCourseByDeleted(boolean isDeleted);
 
-    //Soft delete filter for the users of a course. deleted = null means "do not filter"
+    //Soft delete filter for the users of a course. enabled = null means "do not filter"
     @Query("""
             select new org.chud.springuniapi.repository.projection.UserSummaryRow(c.id, s.id, s.name)
             from Course c

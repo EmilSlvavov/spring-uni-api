@@ -14,15 +14,14 @@ import org.chud.springuniapi.application_events.event.EnrollUserEvent;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
-import org.chud.springuniapi.entity.Department;
-import org.chud.springuniapi.entity.OnlineCourse;
-import org.chud.springuniapi.entity.OnsiteCourse;
-import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.entity.*;
+import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.mapper.UserMapperImpl;
 import org.chud.springuniapi.repository.CourseRepository;
+import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +35,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,18 +60,33 @@ class UserServiceTest {
 
     @Captor ArgumentCaptor<EnrollUserEvent> eventCaptor;
 
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private UserServiceImpl userService;
 
     @BeforeEach
     void setUp() {
         userService = new UserServiceImpl(
-                userRepository, courseRepository, userMapper, eventPublisher);
+                userRepository,
+                courseRepository,
+                userMapper,
+                eventPublisher,
+                roleRepository,
+                passwordEncoder);
     }
 
     @Test
     @DisplayName("check if mappings are correct")
     void findByIdReturnsMappedResponse(){
-        User user = new User("Ana", "ana@uni.bg");
+        User user = new User(
+                "Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
         ReflectionTestUtils.setField(user, "id", 1L);
 
         //switched from refactoring to using findById instead of previous findWithCoursesById
@@ -101,11 +116,26 @@ class UserServiceTest {
     @DisplayName("happy path create")
     void createHappyPath() {
 
-        CreateUserRequest request = new CreateUserRequest("Ana", "ana@uni.bg");
+        //Raw and encoded are deliberately DIFFERENT strings. If they were the same
+        //value this test could not tell a hashed password from a stored plaintext one,
+        //which is the single thing it most needs to prove.
+        String rawPassword = "hunter2secret";
+        String encodedPassword = "{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-        User saved = new User("Ana", "ana@uni.bg");
+        //The Role arriving on the request is a detached object from the client.
+        //The Role the service is supposed to persist is the managed one it looked up.
+        //Two separate instances, so isSameAs below can tell them apart.
+        RoleName requestRole = RoleName.STUDENT;
+        Role managedRole = new Role(RoleName.STUDENT);
+
+        CreateUserRequest request =
+                new CreateUserRequest("Ana", "ana@uni.bg", rawPassword, requestRole);
+
+        User saved = new User("Ana", "ana@uni.bg", encodedPassword, managedRole);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
+        when(roleRepository.findByRoleName(RoleName.STUDENT)).thenReturn(Optional.of(managedRole));
+        when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
         when(userRepository.saveAndFlush(any(User.class))).thenReturn(saved);
 
         UserResponse result = userService.create(request);
@@ -122,12 +152,24 @@ class UserServiceTest {
         //the captured entity was built from the request, so that is what it should carry
         assertThat(captured.getName()).isEqualTo(request.name());
         assertThat(captured.getEmail()).isEqualTo(request.email());
+
+        //The password that reaches the database must be the encoder's output.
+        assertThat(captured.getPassword()).isEqualTo(encodedPassword);
+        //And it must not be what the client typed.
+        assertThat(captured.getPassword()).isNotEqualTo(rawPassword);
+
+        //The persisted role must be the managed row from the repository, not the
+        //detached instance the client sent.
+        assertThat(captured.getRole()).isSameAs(managedRole);
     }
 
     @Test
     @DisplayName("email already exists")
     void createEmailAlreadyExists() {
-        CreateUserRequest request = new CreateUserRequest("Ana", "ana@uni.bg");
+        CreateUserRequest request = new CreateUserRequest("Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(true);
 
@@ -141,9 +183,16 @@ class UserServiceTest {
     @Test
     @DisplayName("lost race when creating")
     void createLostRace() {
-        CreateUserRequest request = new CreateUserRequest("Ana", "ana@uni.bg");
+        CreateUserRequest request = new CreateUserRequest("Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                RoleName.STUDENT);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
+        when(roleRepository.findByRoleName(any(RoleName.class))).thenReturn(Optional.of(new Role(RoleName.STUDENT)));
+        when(passwordEncoder.encode(any(String.class)))
+                .thenReturn("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
+
         when(userRepository.saveAndFlush(any(User.class)))
             .thenThrow(new DataIntegrityViolationException("Violation of UNIQUE KEY constraint 'UQ_users_email'"));
 
@@ -155,7 +204,11 @@ class UserServiceTest {
     @Test
     @DisplayName("delete happy path")
     void deleteHappyPath() {
-        User user = new User("Ana", "ana@uni.bg");
+        User user = new User(
+                "Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
         Department department = new Department("department");
         OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
         OnsiteCourse onsiteCourse = new OnsiteCourse("onsiteCourse", department, 303L);
@@ -189,7 +242,11 @@ class UserServiceTest {
     @Test
     @DisplayName("enroll happy path")
     void enrollUserHappyPath() {
-        User user = new User("Ana", "ana@uni.bg");
+        User user = new User(
+                "Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
         ReflectionTestUtils.setField(user, "id", 1L);
         Department department = new Department("department");
         OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
@@ -234,7 +291,11 @@ class UserServiceTest {
     @Test
     @DisplayName("enroll course not found")
     void enrollCourseNotFound() {
-        User user = new User("Ana", "ana@uni.bg");
+        User user = new User(
+                "Ana",
+                "ana@uni.bg",
+                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                new Role(RoleName.STUDENT));
 
         when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
         when(courseRepository.findWithLockById(2L)).thenReturn(Optional.empty());

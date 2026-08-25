@@ -13,9 +13,120 @@
     { "key": "userId", "value": "" },
     { "key": "throwawayDepartmentId", "value": "" },
     { "key": "throwawayCourseId", "value": "" },
-    { "key": "throwawayUserId", "value": "" }
+    { "key": "throwawayUserId", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "adminEmail", "value": "admin@email.test" },
+    { "key": "seedPassword", "value": "SET_ME_TO_YOUR_SEED_PASSWORD" },
+    { "key": "newUserPassword", "value": "Str0ngPassw0rd" },
+    { "key": "registeredEmail", "value": "" },
+    { "key": "escalationEmail", "value": "" },
+    { "key": "escalationToken", "value": "" }
   ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
   "item": [
+    {
+      "name": "0 Auth (run this folder first)",
+      "description": "Registration and login. Every other folder needs the {{token}} this folder sets.\n\nOrder matters: the admin login is LAST so {{token}} ends up holding an ADMIN token, which is what the remaining folders assume.\n\nSet the seedPassword collection variable to whatever SEED_PASSWORD your app started with, or nothing here will authenticate.",
+      "item": [
+        {
+          "name": "POST /api/auth/register - public self-registration",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('no password echoed back', () => pm.expect(body).to.not.have.property('password'));",
+            "pm.collectionVariables.set('registeredEmail', body.email);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Self Registered\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/register - privilege escalation attempt (role is ignored)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "// RegisterRequest has no role component, so Jackson drops the injected field.",
+            "// The response cannot show the role, so the next two requests prove it instead.",
+            "pm.collectionVariables.set('escalationEmail', pm.response.json().email);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"ADMIN\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the escalation attempt",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('escalationToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{escalationEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "GET /api/users - escalation token must be REFUSED (403)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden - the injected role was ignored', () => pm.response.to.have.status(403));",
+            "// 403 not 401: the token is valid and the user is known, they simply are not ADMIN.",
+            "// A 200 here would mean public registration can mint admins."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{escalationToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - WRONG password (401 once Section 9 lands)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "// Currently 500: BadCredentialsException reaches no handler yet.",
+            "// Section 9 adds one and this becomes 401.",
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"definitely-not-the-password\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as ADMIN (sets {{token}} for every other folder)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('token returned', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+            "pm.test('expiresIn is in SECONDS', () => pm.expect(body.expiresIn).to.be.above(60));",
+            "// Paste body.token into jwt.io - the payload is readable without any key.",
+            "// That is the point of section 7.3: signed, not encrypted.",
+            "pm.collectionVariables.set('token', body.token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{seedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        }
+      ]
+    },
     {
       "name": "1 Departments (+ @ElementCollection contacts)",
       "item": [
@@ -304,7 +415,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
@@ -406,7 +517,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway User\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway User\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },

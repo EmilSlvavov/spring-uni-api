@@ -57,7 +57,7 @@ class UserControllerTest {
 
         MvcTestResult result = mockMvc.post().uri("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Ana\",\"email\":\"ana@uni.bg\"}").exchange();
+                .content("{\"name\":\"Ana\",\"email\":\"ana@uni.bg\",\"password\":\"hunter2secret\",\"role\":\"STUDENT\"}").exchange();
 
         assertThat(result).hasStatus(201);
 
@@ -109,7 +109,7 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("calling get with no params calls findById(1L, {deleted})")
+    @DisplayName("calling get with no params calls findById(1L, {enabled})")
     void getWithParamsCallsFindByIdWithParams() {
         mockMvc.get().uri("/api/users/1?deleted=true").exchange();
 
@@ -126,7 +126,7 @@ class UserControllerTest {
 
         MvcTestResult result = mockMvc.post().uri("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Ana\",\"email\":\"ana@uni.bg\"}").exchange();
+                .content("{\"name\":\"Ana\",\"email\":\"ana@uni.bg\",\"password\":\"hunter2secret\",\"role\":\"STUDENT\"}").exchange();
 
         assertThat(result).hasStatus(201);
         assertThat(result).bodyJson().doesNotHavePath("$.bio");
