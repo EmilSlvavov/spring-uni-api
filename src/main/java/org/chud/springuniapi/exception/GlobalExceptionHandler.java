@@ -203,4 +203,40 @@ public class GlobalExceptionHandler {
 
         return problemDetail;
     }
+
+    @ExceptionHandler(LoginException.class)
+    public ProblemDetail handleLoginException(LoginException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 500 login violation: {}",
+            request.getMethod(),
+            request.getRequestURI(),
+            ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Login Exception"
+        );
+        problemDetail.setTitle("Login Exception");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex,
+        HttpServletRequest request) {
+
+        log.warn("{} {} -> 401 refresh rejected: {}",
+            request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNAUTHORIZED,
+            "Refresh token is invalid or expired"); // generic on purpose
+
+        problemDetail.setTitle("Invalid Refresh Token");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
 }

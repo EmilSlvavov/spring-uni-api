@@ -37,42 +37,50 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         http
-                .addFilterBefore(new BearerTokenFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(
-                        session ->
-                                session
-                                        .sessionCreationPolicy(
-                                                SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
+            .addFilterBefore(new BearerTokenFilter(jwtService),
+                UsernamePasswordAuthenticationFilter.class)
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(
+                session ->
+                    session
+                        .sessionCreationPolicy(
+                            SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
 
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
-                        .requestMatchers("/api/auth/**").permitAll()
+                // role endpoints
+                .requestMatchers(HttpMethod.GET, "/api/roles/**").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/users/display").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/users/softDeleted/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/users/softDeleted/**").hasRole("ADMIN")
+                // auth endpoints
+                .requestMatchers("/api/auth/**").permitAll()
 
-                        // courses endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/courses/**").hasAnyRole("PROFESSOR", "ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("PROFESSOR", "ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/courses/softDeleted/**").hasAnyRole("PROFESSOR", "ADMIN")
-                        //Soft delete is for professors, hard is not.
-                        .requestMatchers(HttpMethod.DELETE, "/api/courses/softDeleted/**").hasAnyRole("PROFESSOR", "ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/display").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/softDeleted/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/users/softDeleted/**").hasRole("ADMIN")
 
-                        // department endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/departments/softDeleted/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/departments/**").permitAll()
-                        .requestMatchers("/api/departments/**").hasRole("ADMIN")
-                        .anyRequest().authenticated()
-                )
-                .httpBasic(Customizer.withDefaults());
+                // courses endpoints
+                .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/courses/**")
+                .hasAnyRole("PROFESSOR", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("PROFESSOR", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/courses/softDeleted/**")
+                .hasAnyRole("PROFESSOR", "ADMIN")
+                //Soft delete is for professors, hard is not.
+                .requestMatchers(HttpMethod.DELETE, "/api/courses/softDeleted/**")
+                .hasAnyRole("PROFESSOR", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasRole("ADMIN")
+
+                // department endpoints
+                .requestMatchers(HttpMethod.GET, "/api/departments/softDeleted/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/departments/**").permitAll()
+                .requestMatchers("/api/departments/**").hasRole("ADMIN")
+                .anyRequest().authenticated()
+            )
+            .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
@@ -94,14 +102,15 @@ public class SecurityConfig {
     JwtDecoder jwtDecoder(@Value("${user.jwt.secret}") String secret) {
         SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
+            .macAlgorithm(MacAlgorithm.HS256)
+            .build();
     }
 
 
     //exposes the ProviderManager Spring already built
     @Bean
-    AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    AuthenticationManager authenticationManager(AuthenticationConfiguration config)
+        throws Exception {
         return config.getAuthenticationManager();
     }
 }

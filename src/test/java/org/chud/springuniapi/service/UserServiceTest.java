@@ -21,9 +21,11 @@ import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.mapper.UserMapperImpl;
 import org.chud.springuniapi.repository.CourseRepository;
+import org.chud.springuniapi.repository.RefreshTokenRepository;
 import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,7 +60,8 @@ class UserServiceTest {
     @Captor
     private ArgumentCaptor<User> userCaptor;
 
-    @Captor ArgumentCaptor<EnrollUserEvent> eventCaptor;
+    @Captor
+    ArgumentCaptor<EnrollUserEvent> eventCaptor;
 
     @Mock
     private RoleRepository roleRepository;
@@ -66,27 +69,34 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private IRefreshTokenService refreshTokenService;
+
+    private RefreshTokenRepository refreshTokenRepository;
+
     private UserServiceImpl userService;
 
     @BeforeEach
     void setUp() {
         userService = new UserServiceImpl(
-                userRepository,
-                courseRepository,
-                userMapper,
-                eventPublisher,
-                roleRepository,
-                passwordEncoder);
+            userRepository,
+            courseRepository,
+            userMapper,
+            eventPublisher,
+            roleRepository,
+            passwordEncoder,
+            refreshTokenService,
+            refreshTokenRepository);
     }
 
     @Test
     @DisplayName("check if mappings are correct")
-    void findByIdReturnsMappedResponse(){
+    void findByIdReturnsMappedResponse() {
         User user = new User(
-                "Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                new Role(RoleName.STUDENT));
+            "Ana",
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            new Role(RoleName.STUDENT));
         ReflectionTestUtils.setField(user, "id", 1L);
 
         //switched from refactoring to using findById instead of previous findWithCoursesById
@@ -129,7 +139,7 @@ class UserServiceTest {
         Role managedRole = new Role(RoleName.STUDENT);
 
         CreateUserRequest request =
-                new CreateUserRequest("Ana", "ana@uni.bg", rawPassword, requestRole);
+            new CreateUserRequest("Ana", "ana@uni.bg", rawPassword, requestRole);
 
         User saved = new User("Ana", "ana@uni.bg", encodedPassword, managedRole);
 
@@ -167,9 +177,9 @@ class UserServiceTest {
     @DisplayName("email already exists")
     void createEmailAlreadyExists() {
         CreateUserRequest request = new CreateUserRequest("Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                RoleName.STUDENT);
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            RoleName.STUDENT);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(true);
 
@@ -184,17 +194,19 @@ class UserServiceTest {
     @DisplayName("lost race when creating")
     void createLostRace() {
         CreateUserRequest request = new CreateUserRequest("Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                RoleName.STUDENT);
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            RoleName.STUDENT);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
-        when(roleRepository.findByRoleName(any(RoleName.class))).thenReturn(Optional.of(new Role(RoleName.STUDENT)));
+        when(roleRepository.findByRoleName(any(RoleName.class))).thenReturn(
+            Optional.of(new Role(RoleName.STUDENT)));
         when(passwordEncoder.encode(any(String.class)))
-                .thenReturn("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
+            .thenReturn("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
 
         when(userRepository.saveAndFlush(any(User.class)))
-            .thenThrow(new DataIntegrityViolationException("Violation of UNIQUE KEY constraint 'UQ_users_email'"));
+            .thenThrow(new DataIntegrityViolationException(
+                "Violation of UNIQUE KEY constraint 'UQ_users_email'"));
 
         assertThatThrownBy(() -> userService.create(request))
             .isInstanceOf(DuplicateResourceException.class)
@@ -205,10 +217,10 @@ class UserServiceTest {
     @DisplayName("delete happy path")
     void deleteHappyPath() {
         User user = new User(
-                "Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                new Role(RoleName.STUDENT));
+            "Ana",
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            new Role(RoleName.STUDENT));
         Department department = new Department("department");
         OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
         OnsiteCourse onsiteCourse = new OnsiteCourse("onsiteCourse", department, 303L);
@@ -243,10 +255,10 @@ class UserServiceTest {
     @DisplayName("enroll happy path")
     void enrollUserHappyPath() {
         User user = new User(
-                "Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                new Role(RoleName.STUDENT));
+            "Ana",
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            new Role(RoleName.STUDENT));
         ReflectionTestUtils.setField(user, "id", 1L);
         Department department = new Department("department");
         OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
@@ -254,9 +266,9 @@ class UserServiceTest {
         when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
         when(courseRepository.findWithLockById(2L)).thenReturn(Optional.of(onlineCourse));
         when(userRepository.findCourseSummariesByUserIds(List.of(1L), null))
-                .thenReturn(List.of(new CourseSummaryRow(1L, 2L, "onlineCourse")));
+            .thenReturn(List.of(new CourseSummaryRow(1L, 2L, "onlineCourse")));
 
-        UserResponse result = userService.enroll(1L,2L);
+        UserResponse result = userService.enroll(1L, 2L);
 
         assertThat(user.getCourses()).contains(onlineCourse);
         assertThat(onlineCourse.getUsers()).contains(user);
@@ -272,7 +284,7 @@ class UserServiceTest {
         assertThat(result.id()).isEqualTo(user.getId());
         assertThat(result.name()).isEqualTo(user.getName());
         assertThat(result.courses())
-                .containsExactly(new CourseSummaryResponse(2L, onlineCourse.getName()));
+            .containsExactly(new CourseSummaryResponse(2L, onlineCourse.getName()));
 
     }
 
@@ -282,8 +294,8 @@ class UserServiceTest {
         when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.enroll(1L, 2L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User with id 1 not found");
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessage("User with id 1 not found");
 
         verify(eventPublisher, never()).publishEvent(any(EnrollUserEvent.class));
     }
@@ -292,17 +304,17 @@ class UserServiceTest {
     @DisplayName("enroll course not found")
     void enrollCourseNotFound() {
         User user = new User(
-                "Ana",
-                "ana@uni.bg",
-                "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-                new Role(RoleName.STUDENT));
+            "Ana",
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            new Role(RoleName.STUDENT));
 
         when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
         when(courseRepository.findWithLockById(2L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.enroll(1L, 2L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("Course with id 2 not found");
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessage("Course with id 2 not found");
 
         verify(eventPublisher, never()).publishEvent(any(EnrollUserEvent.class));
     }

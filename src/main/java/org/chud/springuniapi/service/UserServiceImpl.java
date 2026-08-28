@@ -13,13 +13,16 @@ import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Role;
 import org.chud.springuniapi.entity.User;
 import org.chud.springuniapi.enums.RoleName;
+import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.repository.CourseRepository;
+import org.chud.springuniapi.repository.RefreshTokenRepository;
 import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -41,19 +44,24 @@ public class UserServiceImpl implements IUserService {
     private final ApplicationEventPublisher eventPublisher;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IRefreshTokenService refreshTokenService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public UserServiceImpl(
             UserRepository userRepository,
             CourseRepository courseRepository,
             UserMapper userMapper,
             ApplicationEventPublisher eventPublisher,
-            RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+            RoleRepository roleRepository, PasswordEncoder passwordEncoder,
+        IRefreshTokenService refreshTokenService, RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.userMapper = userMapper;
         this.eventPublisher = eventPublisher;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Override
@@ -158,6 +166,30 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
+    public UserResponse assignRole(Long id, RoleName roleName) {
+        User user = userRepository.findWithCoursesById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        Role role = roleRepository.findByRoleName(roleName)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Role ", roleName.name()));
+
+        if (role.getRoleName() == RoleName.ADMIN && !user.getCourses().isEmpty()) {
+            throw new BusinessRuleViolationException(
+                "a user enrolled in courses cannot be promoted to ADMIN");
+        }
+
+        user.setRole(role);
+
+        //we do this so the jwts with the old role dont
+        // keep getting renewed by the refresh token
+        refreshTokenService.revokeAllFor(id);
+
+        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
+    }
+
+    @Override
+    @Transactional
     public UserResponse enroll(Long userId, Long courseId) {
         User user = userRepository.findWithCoursesById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
@@ -206,6 +238,11 @@ public class UserServiceImpl implements IUserService {
         for (Course course : Set.copyOf(user.getCourses())) {
             user.withdraw(course);
         }
+
+        //refresh_tokens.user_id has no cascade, and revoking only sets revoked_at.
+        //The rows have to actually go, and go first.
+        refreshTokenRepository.deleteByUserId(id);
+        refreshTokenRepository.flush();
 
         userRepository.delete(user);
     }

@@ -9,6 +9,7 @@ import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
 
 import java.util.List;
+import org.chud.springuniapi.enums.RoleName;
 
 public interface IUserService {
 
@@ -38,4 +39,6 @@ public interface IUserService {
     UserSoftDeleteResponse softDelete(Long id);
 
     UserSoftDeleteResponse restoreSoftDelete(Long id);
+
+    UserResponse assignRole(Long id, RoleName roleName);
 }

@@ -1,6 +1,7 @@
 package org.chud.springuniapi.controller;
 
 import jakarta.validation.Valid;
+import org.chud.springuniapi.dto.request.AssignRoleRequest;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
@@ -100,5 +101,11 @@ public class UserController {
     @PatchMapping("/softDeleted/{id}")
     public UserSoftDeleteResponse restoreSoftDelete(@PathVariable Long id) {
         return userService.restoreSoftDelete(id);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/role")
+    public UserResponse assignRole(@PathVariable Long id, @Valid @RequestBody AssignRoleRequest request) {
+        return userService.assignRole(id, request.role());
     }
 }
