@@ -10,13 +10,8 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
-import org.chud.springuniapi.dto.RotationResult;
-import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.dto.TokenRotation;
 import org.chud.springuniapi.exception.InvalidRefreshTokenException;
-import org.chud.springuniapi.exception.ResourceNotFoundException;
-import org.chud.springuniapi.repository.UserRepository;
-import org.chud.springuniapi.security.MyUserDetails;
-import org.chud.springuniapi.security.MyUserDetailsService;
 import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,36 +42,29 @@ public class RefreshTokenServiceImpl implements IRefreshTokenService {
     private final HashOperations<String, String, String> hashOps;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Duration lifetime;
-    private final MyUserDetailsService myUserDetailsService;
-    private final UserRepository userRepository;
 
     public RefreshTokenServiceImpl(
         StringRedisTemplate redis,
-        @Value("${user.jwt.refresh-ttl-days}") long lifetimeDays,
-        MyUserDetailsService myUserDetailsService,
-        UserRepository userRepository) {
+        @Value("${user.jwt.refresh-ttl-days}") long lifetimeDays) {
         this.redis = redis;
         //returns wrapper that makes the calls into hash
         // commands, doing it here rather than calling this method in every method
         this.hashOps = redis.opsForHash();
         this.lifetime = Duration.ofDays(lifetimeDays);
-        this.myUserDetailsService = myUserDetailsService;
-        this.userRepository = userRepository;
     }
 
+    //The caller reached here with an authenticated principal, so the owner exists by
+    //construction. The existsById guard this used to run was the last reason for this
+    //class to know what a UserRepository is.
     @Override
     public String issueFor(Long userId) {
-        if (!userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("User", userId);
-        }
-
         String raw = randomKey();
         store(hash(raw), userId, Instant.now().plus(lifetime));
         return raw;
     }
 
     @Override
-    public RotationResult rotate(String presentKey) {
+    public TokenRotation rotate(String presentKey) {
         Instant now = Instant.now();
         String key = tokenKey(hash(presentKey));
 
@@ -114,23 +102,12 @@ public class RefreshTokenServiceImpl implements IRefreshTokenService {
         //add revoked at field
         hashOps.putIfAbsent(key, F_REVOKED_AT, now.toString());
 
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new InvalidRefreshTokenException("Owner no longer exists"));
-
-        if (user.isDeleted()) {
-            revokeAllFor(userId);
-            throw new InvalidRefreshTokenException("User is suspended");
-        }
-
         Instant expiresAt = now.plus(lifetime);
 
         //store the new refresh token with the updated hash
         store(replacementHash, userId, expiresAt);
 
-        MyUserDetails principal = (MyUserDetails)
-            myUserDetailsService.loadUserByUsername(user.getEmail());
-
-        return new RotationResult(principal, replacement, expiresAt);
+        return new TokenRotation(userId, replacement, expiresAt);
     }
 
     @Override

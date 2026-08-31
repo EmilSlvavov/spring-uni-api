@@ -11,6 +11,8 @@ import org.chud.springuniapi.controller.RoleController;
 import org.chud.springuniapi.controller.UserController;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.security.authorization.AuthorizationServiceImpl;
+import org.chud.springuniapi.service.facade.IEnrollmentFacade;
+import org.chud.springuniapi.service.facade.IUserAccountFacade;
 import org.chud.springuniapi.service.serviceInterface.IRoleService;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,13 @@ abstract class SecurityWebTestSupport {
 
     @MockitoBean
     protected IUserService userService;
+
+    //UserController takes these two now, so the slice has to supply them
+    @MockitoBean
+    protected IUserAccountFacade userAccountFacade;
+
+    @MockitoBean
+    protected IEnrollmentFacade enrollmentFacade;
 
     @MockitoBean
     protected IRoleService roleService;

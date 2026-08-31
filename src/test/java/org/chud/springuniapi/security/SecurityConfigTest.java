@@ -40,7 +40,8 @@ class SecurityConfigTest extends SecurityWebTestSupport {
 
         assertThat(patchRole("/api/users/7/role", tokenFor(7L, "STUDENT"))).hasStatus(403);
 
-        when(userService.assignRole(anyLong(), any())).thenReturn(userResponse());
+        //assignRole moved to the account facade, the authorization rule did not move
+        when(userAccountFacade.assignRole(anyLong(), any())).thenReturn(userResponse());
         assertThat(patchRole("/api/users/7/role", tokenFor(1L, "ADMIN"))).hasStatusOk();
     }
 

@@ -4,6 +4,8 @@ import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
+import org.chud.springuniapi.service.facade.IEnrollmentFacade;
+import org.chud.springuniapi.service.facade.IUserAccountFacade;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,14 @@ class UserControllerTest {
     @MockitoBean
     private IUserService userService;
 
+    //POST /api/users needs a Role, which lives outside the User aggregate, so the
+    //endpoint goes through the account facade now
+    @MockitoBean
+    private IUserAccountFacade userAccountFacade;
+
+    @MockitoBean
+    private IEnrollmentFacade enrollmentFacade;
+
     @Test
     @DisplayName(" get with id returns 200 with user json")
     void getByIdReturnsJsonWithStatusOk() {
@@ -50,7 +60,7 @@ class UserControllerTest {
     @Test
     @DisplayName("post with a valid body returns status 201")
     void postWithValidReturnsStatusCreated() {
-        when(userService.create(
+        when(userAccountFacade.create(
                 any()))
                 .thenReturn(new UserResponse(
                         1L, "Ana", "ana@uni.bg", null, null, List.of()));
@@ -63,7 +73,7 @@ class UserControllerTest {
 
         ArgumentCaptor<CreateUserRequest> requestCaptor =
                 ArgumentCaptor.forClass(CreateUserRequest.class);
-        verify(userService).create(requestCaptor.capture());
+        verify(userAccountFacade).create(requestCaptor.capture());
         CreateUserRequest captured = requestCaptor.getValue();
 
         assertThat(captured.name()).isEqualTo("Ana");
@@ -82,7 +92,7 @@ class UserControllerTest {
                 .isEqualTo("name is required");
         assertThat(result).bodyJson().extractingPath("$.errors.email")
                 .isEqualTo("must be a valid email");
-        verifyNoInteractions(userService);
+        verifyNoInteractions(userAccountFacade);
     }
 
     @Test
@@ -119,7 +129,7 @@ class UserControllerTest {
     @Test
     @DisplayName("checking if jsonInclude(NON_NULL) annotation is working")
     void postCheckForJsonInclude() {
-        when(userService.create(
+        when(userAccountFacade.create(
                 any()))
                 .thenReturn(new UserResponse(
                         1L, "Ana", "ana@uni.bg", null, null, List.of()));

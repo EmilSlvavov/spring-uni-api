@@ -3,14 +3,14 @@ package org.chud.springuniapi.validation;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import org.chud.springuniapi.enums.RoleName;
-import org.chud.springuniapi.repository.UserRepository;
+import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
 
 public class NotAdminValidator implements ConstraintValidator<NotAdmin, Long> {
 
-    private final UserRepository userRepository;
+    private final IUserServiceInternal userService;
 
-    public NotAdminValidator(UserRepository userRepository) {
-        this.userRepository =  userRepository;
+    public NotAdminValidator(IUserServiceInternal userService) {
+        this.userService =  userService;
     }
 
     @Override
@@ -20,7 +20,7 @@ public class NotAdminValidator implements ConstraintValidator<NotAdmin, Long> {
             return true;
         }
 
-        return userRepository.findRoleNameByUserId(userId).
+        return userService.roleOf(userId).
                 map(role -> role != RoleName.ADMIN)
                 .orElse(true);
     }

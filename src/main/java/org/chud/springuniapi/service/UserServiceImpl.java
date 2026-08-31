@@ -1,8 +1,6 @@
 package org.chud.springuniapi.service;
 
-import org.chud.springuniapi.application_events.event.EnrollUserEvent;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
-import org.chud.springuniapi.dto.request.RegisterRequest;
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
@@ -17,48 +15,38 @@ import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
-import org.chud.springuniapi.repository.CourseRepository;
-import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
-import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
-import org.springframework.context.ApplicationEventPublisher;
+import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+//The only class allowed to touch UserRepository. Anything outside the User aggregate
+//that needs a user goes through IUserServiceInternal instead.
 @Service
 @Transactional(readOnly = true)
-public class UserServiceImpl implements IUserService {
+public class UserServiceImpl implements IUserService, IUserServiceInternal {
 
     private final UserRepository userRepository;
-    private final CourseRepository courseRepository;
     private final UserMapper userMapper;
-    private final ApplicationEventPublisher eventPublisher;
-    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final IRefreshTokenService refreshTokenService;
 
     public UserServiceImpl(
             UserRepository userRepository,
-            CourseRepository courseRepository,
             UserMapper userMapper,
-            ApplicationEventPublisher eventPublisher,
-            RoleRepository roleRepository, PasswordEncoder passwordEncoder,
-        IRefreshTokenService refreshTokenService) {
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
-        this.courseRepository = courseRepository;
         this.userMapper = userMapper;
-        this.eventPublisher = eventPublisher;
-        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
-        this.refreshTokenService = refreshTokenService;
     }
 
     @Override
@@ -107,38 +95,6 @@ public class UserServiceImpl implements IUserService {
                 .toList();
     }
 
-    //changed method so it checks if it won the race condition and throws if not
-    @Override
-    @Transactional
-    public UserResponse create(CreateUserRequest request) {
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
-            throw new DuplicateResourceException(
-                    "Email '%s' is already registered".formatted(request.email()));
-        }
-
-        Role role = roleRepository.findByRoleName(request.role())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Role %s is not seeded".formatted(request.role())));
-
-        String password = passwordEncoder.encode(request.password());
-
-        User saved;
-        try {
-            saved = userRepository.saveAndFlush(
-                    new User(
-                            request.name(),
-                            request.email(),
-                            password,
-                            role));
-        } catch (DataIntegrityViolationException e) {
-            throw new DuplicateResourceException(
-                    "Email '%s' is already registered".formatted(request.email())
-            );
-        }
-        //a fresh user has no courses yet, so there is nothing to query for
-        return userMapper.toResponse(saved, List.of());
-    }
-
     @Override
     @Transactional
     public UserResponse update(Long id, UpdateUserRequest request) {
@@ -159,71 +115,6 @@ public class UserServiceImpl implements IUserService {
         user.setDateOfBirth(request.dateOfBirth());
 
         return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
-    }
-
-    @Override
-    @Transactional
-    public UserResponse assignRole(Long id, RoleName roleName) {
-        User user = userRepository.findWithCoursesById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("User", id));
-
-        Role role = roleRepository.findByRoleName(roleName)
-            .orElseThrow(() -> new ResourceNotFoundException(
-                "Role ", roleName.name()));
-
-        if (role.getRoleName() == RoleName.ADMIN && !user.getCourses().isEmpty()) {
-            throw new BusinessRuleViolationException(
-                "a user enrolled in courses cannot be promoted to ADMIN");
-        }
-
-        user.setRole(role);
-
-        //we do this so the jwts with the old role dont
-        // keep getting renewed by the refresh token
-        refreshTokenService.revokeAllFor(id);
-
-        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
-    }
-
-    @Override
-    @Transactional
-    public UserResponse enroll(Long userId, Long courseId) {
-        User user = userRepository.findWithCoursesById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        Course course = courseRepository.findWithLockById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course", courseId));
-
-        user.enroll(course); // again dirty checking saves it
-        userRepository.flush(); // push the join row out so the summary query sees it
-
-        eventPublisher.publishEvent(new EnrollUserEvent(userId, courseId, course.getName()));
-
-        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
-    }
-
-    @Override
-    @Transactional
-    public UserResponse withdraw(Long userId, Long courseId) {
-        User user = userRepository.findWithCoursesById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course", courseId));
-
-        user.withdraw(course); // again dirty checking saves it
-        userRepository.flush(); // drop the join row before we read the summaries back
-
-        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
-    }
-
-    @Override
-    @Transactional
-    public UserResponse register(RegisterRequest request) {
-
-        return create(new CreateUserRequest(
-                request.name(),
-                request.email(),
-                request.password(),
-                RoleName.STUDENT));
     }
 
     @Override
@@ -259,6 +150,82 @@ public class UserServiceImpl implements IUserService {
         return userMapper.toResponseWithSoftDelete(user, coursesOfForSingleUser(user, null));
     }
 
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public User loadWithCourses(Long id) {
+        return userRepository.findWithCoursesById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+    }
+
+    @Override
+    public Optional<User> loadById(Long id) {
+        return userRepository.findById(id);
+    }
+
+    @Override
+    public Optional<User> loadByEmail(String email) {
+        return userRepository.findUserByEmailIgnoreCase(email);
+    }
+
+    @Override
+    public Optional<RoleName> roleOf(Long id) {
+        return userRepository.findRoleNameByUserId(id);
+    }
+
+    //flush stays in service layer. Otherwise, facade would be reaching for repo layer
+    //which defeats its purpose.
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UserResponse describe(User user) {
+        //push pending join table rows out so the summary query below sees them
+        userRepository.flush();
+        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
+    }
+
+    //changed method so it checks if it won the race condition and throws if not
+    @Override
+    @Transactional
+    public UserResponse create(CreateUserRequest request, Role role) {
+        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+            throw new DuplicateResourceException(
+                    "Email '%s' is already registered".formatted(request.email()));
+        }
+
+        String password = passwordEncoder.encode(request.password());
+
+        User saved;
+        try {
+            saved = userRepository.saveAndFlush(
+                    new User(
+                            request.name(),
+                            request.email(),
+                            password,
+                            role));
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateResourceException(
+                    "Email '%s' is already registered".formatted(request.email())
+            );
+        }
+        //a fresh user has no courses yet, so there is nothing to query for
+        return userMapper.toResponse(saved, List.of());
+    }
+
+    @Override
+    @Transactional
+    public UserResponse assignRole(Long id, Role role) {
+        User user = userRepository.findWithCoursesById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        if (role.getRoleName() == RoleName.ADMIN && !user.getCourses().isEmpty()) {
+            throw new BusinessRuleViolationException(
+                "a user enrolled in courses cannot be promoted to ADMIN");
+        }
+
+        user.setRole(role);
+
+        return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
+    }
+
     //get the courses by user with filter for soft delete value
     private Map<Long, List<CourseSummaryResponse>> listCoursesByUserId(List<User> users, Boolean deleted) {
         //get the ids of the users
@@ -283,7 +250,7 @@ public class UserServiceImpl implements IUserService {
         return coursesByUser.getOrDefault(user.getId(), List.of());
     }
 
-    //used for single entity paths which dont deal with multiple users like enroll, update etc.
+    //used for single entity paths which dont deal with multiple users like update etc.
     private List<CourseSummaryResponse> coursesOfForSingleUser(User user, Boolean deleted) {
         return coursesOfForMultipleUsers(listCoursesByUserId(List.of(user), deleted), user);
     }

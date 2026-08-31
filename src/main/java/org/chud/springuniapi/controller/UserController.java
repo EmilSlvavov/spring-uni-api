@@ -8,6 +8,8 @@ import org.chud.springuniapi.dto.request.UpdateUserRequest;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.service.facade.IEnrollmentFacade;
+import org.chud.springuniapi.service.facade.IUserAccountFacade;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.chud.springuniapi.validation.NotAdmin;
 import org.springframework.http.HttpStatus;
@@ -21,10 +23,19 @@ import java.util.List;
 @RequestMapping("/api/users")
 public class UserController {
 
+    //single aggregate reads and writes go straight to the service, the operations
+    //that also touch a Course, a Role or the token store go through a facade
     private final IUserService userService;
+    private final IUserAccountFacade userAccountFacade;
+    private final IEnrollmentFacade enrollmentFacade;
 
-    public UserController(IUserService userService) {
+    public UserController(
+            IUserService userService,
+            IUserAccountFacade userAccountFacade,
+            IEnrollmentFacade enrollmentFacade) {
         this.userService = userService;
+        this.userAccountFacade = userAccountFacade;
+        this.enrollmentFacade = enrollmentFacade;
     }
 
     @GetMapping
@@ -51,14 +62,14 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
-        UserResponse created = userService.create(request);
+        UserResponse created = userAccountFacade.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#userId, authentication)")
     @PostMapping("/{userId}/courses/{courseId}")
     public UserResponse enroll(@NotAdmin @PathVariable Long userId, @PathVariable Long courseId) {
-        return userService.enroll(userId, courseId);
+        return enrollmentFacade.enroll(userId, courseId);
     }
 
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
@@ -89,7 +100,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#userId, authentication)")
     @DeleteMapping("/{userId}/courses/{courseId}")
     public UserResponse withdraw(@PathVariable Long userId, @PathVariable Long courseId) {
-        return userService.withdraw(userId, courseId);
+        return enrollmentFacade.withdraw(userId, courseId);
     }
 
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
@@ -106,6 +117,6 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/role")
     public UserResponse assignRole(@PathVariable Long id, @Valid @RequestBody AssignRoleRequest request) {
-        return userService.assignRole(id, request.role());
+        return userAccountFacade.assignRole(id, request.role());
     }
 }

@@ -8,31 +8,32 @@ import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.dto.response.UserSummaryResponse;
 import org.chud.springuniapi.entity.*;
+import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.CourseMapper;
 import org.chud.springuniapi.repository.CourseRepository;
-import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryView;
 import org.chud.springuniapi.repository.projection.UserSummaryRow;
 import org.chud.springuniapi.service.serviceInterface.ICourseService;
+import org.chud.springuniapi.service.serviceInterface.internal.ICourseServiceInternal;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+//The only class allowed to touch CourseRepository.
 @Service
 @Transactional(readOnly = true)
-public class CourseServiceImpl implements ICourseService {
+public class CourseServiceImpl implements ICourseService, ICourseServiceInternal {
 
     private final CourseRepository courseRepository;
-    private final DepartmentRepository departmentRepository;
     private final CourseMapper courseMapper;
 
-    public CourseServiceImpl(CourseRepository courseRepository, DepartmentRepository departmentRepository, CourseMapper courseMapper) {
+    public CourseServiceImpl(CourseRepository courseRepository, CourseMapper courseMapper) {
         this.courseRepository = courseRepository;
-        this.departmentRepository = departmentRepository;
         this.courseMapper = courseMapper;
     }
 
@@ -54,39 +55,6 @@ public class CourseServiceImpl implements ICourseService {
         return courseMapper.toResponse(course, usersOfForSingleCourse(course, deleted));
     }
 
-    //Changed ordering to avoid passing existence check even if right after it somebody deletes it
-    @Override
-    public List<CourseListItemResponse> findSummariesByDepartment(Long departmentId) {
-        List<CourseSummaryView> views = courseRepository.findByDepartmentId(departmentId, CourseSummaryView.class);
-
-        if (views.isEmpty() && !departmentRepository.existsById(departmentId)) {
-            throw new ResourceNotFoundException("Department", departmentId);
-        }
-
-        return views.stream().map(view -> new CourseListItemResponse(
-                        view.getId(),
-                        view.getName(),
-                        view.getDepartment().getName()))
-                .toList();
-    }
-
-    //changed ordering here the same way from above
-    @Override
-    public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
-
-        List<Course> courses = courseRepository.findByDepartmentId(departmentId);
-
-        if (courses.isEmpty() && !departmentRepository.existsById(departmentId)) {
-            throw new ResourceNotFoundException("Department", departmentId);
-        }
-
-        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
-
-        return courses.stream()
-                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
-                .toList();
-    }
-
     @Override
     public List<CourseSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted){
         return courseRepository
@@ -94,23 +62,6 @@ public class CourseServiceImpl implements ICourseService {
             .stream()
             .map(courseMapper::toResponseWithSoftDelete)
             .toList();
-    }
-
-    @Override
-    @Transactional
-    public CourseResponse createOnline(CreateOnlineCourseRequest request) {
-        Department department = requireDepartment(request.departmentId());
-        //a fresh course has no users yet, so there is nothing to query for
-        return courseMapper.toResponse(courseRepository.save(
-                new OnlineCourse(request.name(), department, request.meetingUrl())), List.of());
-    }
-
-    @Override
-    @Transactional
-    public CourseResponse createOnsite(CreateOnsiteCourseRequest request) {
-        Department department = requireDepartment(request.departmentId());
-        return courseMapper.toResponse(courseRepository.save(
-                new OnsiteCourse(request.name(), department, request.roomNumber())), List.of());
     }
 
     @Override
@@ -158,9 +109,69 @@ public class CourseServiceImpl implements ICourseService {
 
     }
 
-    private Department requireDepartment(Long departmentId) {
-        return departmentRepository.findWithLockById(departmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Department", departmentId));
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Course load(Long id) {
+        return courseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+    }
+
+    //The pessimistic read lock and the question of what makes a course enrollable both
+    //live here, in the aggregate that owns the answer, instead of at the call site.
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Course loadForEnrollment(Long id) {
+        Course course = courseRepository.findWithLockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+
+        if (course.isDeleted()) {
+            throw new BusinessRuleViolationException(
+                "cannot enroll in a deleted course");
+        }
+
+        return course;
+    }
+
+    //The department existence check that used to sit here moved to
+    //CourseCatalogFacadeImpl, which is allowed to ask the Department aggregate.
+    @Override
+    public List<CourseListItemResponse> findSummariesByDepartment(Long departmentId) {
+        List<CourseSummaryView> views =
+            courseRepository.findByDepartmentId(departmentId, CourseSummaryView.class);
+
+        return views.stream().map(view -> new CourseListItemResponse(
+                        view.getId(),
+                        view.getName(),
+                        view.getDepartment().getName()))
+                .toList();
+    }
+
+    @Override
+    public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
+        List<Course> courses = courseRepository.findByDepartmentId(departmentId);
+
+        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
+
+        return courses.stream()
+                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
+                .toList();
+    }
+
+    //The Department arrives resolved and locked from the facade.
+    @Override
+    @Transactional
+    public CourseResponse createOnline(CreateOnlineCourseRequest request, Department department) {
+        //a fresh course has no users yet, so there is nothing to query for
+        return courseMapper.toResponse(courseRepository.save(
+                new OnlineCourse(request.name(), department, request.meetingUrl())), List.of());
+    }
+
+    @Override
+    @Transactional
+    public CourseResponse createOnsite(CreateOnsiteCourseRequest request, Department department) {
+        return courseMapper.toResponse(courseRepository.save(
+                new OnsiteCourse(request.name(), department, request.roomNumber())), List.of());
     }
 
     //one query for the whole list instead of one per course

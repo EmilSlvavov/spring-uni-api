@@ -16,17 +16,20 @@ import org.chud.springuniapi.mapper.DepartmentMapper;
 import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
 import org.chud.springuniapi.service.serviceInterface.IDepartmentService;
+import org.chud.springuniapi.service.serviceInterface.internal.IDepartmentServiceInternal;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+//The only class allowed to touch DepartmentRepository.
 @Service
 @Transactional(readOnly = true)
-public class DepartmentServiceImpl implements IDepartmentService {
+public class DepartmentServiceImpl implements IDepartmentService, IDepartmentServiceInternal {
 
     private final DepartmentRepository departmentRepository;
     private final DepartmentMapper departmentMapper;
@@ -157,6 +160,25 @@ public class DepartmentServiceImpl implements IDepartmentService {
             department.getContacts().add(new ContactInfo(c.type(), c.value())));
 
         return departmentMapper.toResponse(department, coursesOfForSingleDepartment(department, null));
+    }
+
+    // ---- IDepartmentServiceInternal, for the facades only ----
+
+    //Was CourseServiceImpl.requireDepartment. The pessimistic read lock belongs to the
+    //aggregate that owns the row, not to whoever happens to be creating a course.
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Department loadForCourseCreation(Long id) {
+        return departmentRepository.findWithLockById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+    }
+
+
+    @Override
+    public void requireExists(Long id) {
+        if (!departmentRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Department", id);
+        }
     }
 
     //one query for the whole list instead of one per department

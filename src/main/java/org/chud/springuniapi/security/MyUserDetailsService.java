@@ -1,8 +1,7 @@
 package org.chud.springuniapi.security;
 
 import org.chud.springuniapi.entity.User;
-import org.chud.springuniapi.exception.ResourceNotFoundException;
-import org.chud.springuniapi.repository.UserRepository;
+import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,21 +11,32 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class MyUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final IUserServiceInternal userService;
 
-    public MyUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public MyUserDetailsService(IUserServiceInternal userService) {
+        this.userService = userService;
     }
 
     @Override
     @Transactional(readOnly = true)
     public @NonNull UserDetails loadUserByUsername(@NonNull String email) throws UsernameNotFoundException {
-        User user = userRepository.findUserByEmailIgnoreCase(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User with such email does not exists" + email));
+        return userService.loadByEmail(email)
+                .map(this::toPrincipal)
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "User with such email does not exists" + email));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<MyUserDetails> loadById(Long userId) {
+        return userService.loadById(userId).map(this::toPrincipal);
+    }
+
+    private MyUserDetails toPrincipal(User user) {
         return new MyUserDetails(
                 user.getId(),
                 user.getEmail(),

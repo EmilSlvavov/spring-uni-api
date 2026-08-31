@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 
-import org.chud.springuniapi.application_events.event.EnrollUserEvent;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
@@ -20,11 +19,8 @@ import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.mapper.UserMapperImpl;
-import org.chud.springuniapi.repository.CourseRepository;
-import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
-import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,43 +30,29 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+//Only the User aggregate is exercised here now. Enrolment moved to
+//EnrollmentFacadeTest and role resolution to UserAccountFacadeTest, because those
+//operations no longer live in this class.
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
 
-    @Mock
-    private CourseRepository courseRepository;
-
     @Spy
     private UserMapper userMapper = new UserMapperImpl();
-
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
 
     @Captor
     private ArgumentCaptor<User> userCaptor;
 
-    @Captor
-    ArgumentCaptor<EnrollUserEvent> eventCaptor;
-
-    @Mock
-    private RoleRepository roleRepository;
-
     @Mock
     private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private IRefreshTokenService refreshTokenService;
-
 
     private UserServiceImpl userService;
 
@@ -78,12 +60,8 @@ class UserServiceTest {
     void setUp() {
         userService = new UserServiceImpl(
             userRepository,
-            courseRepository,
             userMapper,
-            eventPublisher,
-            roleRepository,
-            passwordEncoder,
-            refreshTokenService);
+            passwordEncoder);
     }
 
     @Test
@@ -129,23 +107,21 @@ class UserServiceTest {
         String rawPassword = "hunter2secret";
         String encodedPassword = "{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-        //The Role arriving on the request is a detached object from the client.
-        //The Role the service is supposed to persist is the managed one it looked up.
-        //Two separate instances, so isSameAs below can tell them apart.
-        RoleName requestRole = RoleName.STUDENT;
+        //The Role now arrives resolved, the facade looked it up. It is still a
+        //different instance from anything on the request, so isSameAs below can prove
+        //the service persisted the one it was handed.
         Role managedRole = new Role(RoleName.STUDENT);
 
         CreateUserRequest request =
-            new CreateUserRequest("Ana", "ana@uni.bg", rawPassword, requestRole);
+            new CreateUserRequest("Ana", "ana@uni.bg", rawPassword, RoleName.STUDENT);
 
         User saved = new User("Ana", "ana@uni.bg", encodedPassword, managedRole);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
-        when(roleRepository.findByRoleName(RoleName.STUDENT)).thenReturn(Optional.of(managedRole));
         when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
         when(userRepository.saveAndFlush(any(User.class))).thenReturn(saved);
 
-        UserResponse result = userService.create(request);
+        UserResponse result = userService.create(request, managedRole);
 
         //result is mapped from the saved entity, so that is what it should carry
         assertThat(result.name()).isEqualTo(saved.getName());
@@ -165,8 +141,7 @@ class UserServiceTest {
         //And it must not be what the client typed.
         assertThat(captured.getPassword()).isNotEqualTo(rawPassword);
 
-        //The persisted role must be the managed row from the repository, not the
-        //detached instance the client sent.
+        //The persisted role must be the managed row the caller resolved.
         assertThat(captured.getRole()).isSameAs(managedRole);
     }
 
@@ -180,7 +155,7 @@ class UserServiceTest {
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.create(request))
+        assertThatThrownBy(() -> userService.create(request, new Role(RoleName.STUDENT)))
             .isInstanceOf(DuplicateResourceException.class)
             .hasMessage("Email 'ana@uni.bg' is already registered");
 
@@ -196,8 +171,6 @@ class UserServiceTest {
             RoleName.STUDENT);
 
         when(userRepository.existsByEmailIgnoreCase("ana@uni.bg")).thenReturn(false);
-        when(roleRepository.findByRoleName(any(RoleName.class))).thenReturn(
-            Optional.of(new Role(RoleName.STUDENT)));
         when(passwordEncoder.encode(any(String.class)))
             .thenReturn("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
 
@@ -205,9 +178,29 @@ class UserServiceTest {
             .thenThrow(new DataIntegrityViolationException(
                 "Violation of UNIQUE KEY constraint 'UQ_users_email'"));
 
-        assertThatThrownBy(() -> userService.create(request))
+        assertThatThrownBy(() -> userService.create(request, new Role(RoleName.STUDENT)))
             .isInstanceOf(DuplicateResourceException.class)
             .hasMessage("Email 'ana@uni.bg' is already registered");
+    }
+
+    @Test
+    @DisplayName("assignRole rejects promoting an enrolled user to ADMIN")
+    void assignRoleRejectsEnrolledAdmin() {
+        User user = new User(
+            "Ana",
+            "ana@uni.bg",
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+            new Role(RoleName.STUDENT));
+        user.enroll(new OnlineCourse("onlineCourse", new Department("department"), "url"));
+
+        when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.assignRole(1L, new Role(RoleName.ADMIN)))
+            .isInstanceOf(org.chud.springuniapi.exception.BusinessRuleViolationException.class)
+            .hasMessage("a user enrolled in courses cannot be promoted to ADMIN");
+
+        //the role must not have been swapped before the rule ran
+        assertThat(user.getRole().getRoleName()).isEqualTo(RoleName.STUDENT);
     }
 
     @Test
@@ -249,70 +242,39 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("enroll happy path")
-    void enrollUserHappyPath() {
+    @DisplayName("loadWithCourses throws when the user is missing")
+    void loadWithCoursesThrowsWhenMissing() {
+        when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.loadWithCourses(1L))
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessage("User with id 1 not found");
+    }
+
+    //This is the assertion the old "enroll happy path" test used to make about the
+    //response body. The mapping lives in describe() now, so it is checked here, and
+    //EnrollmentFacadeTest is left to check the orchestration.
+    @Test
+    @DisplayName("describe flushes and maps the user with their current courses")
+    void describeMapsCoursesAfterFlush() {
         User user = new User(
             "Ana",
             "ana@uni.bg",
             "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
             new Role(RoleName.STUDENT));
         ReflectionTestUtils.setField(user, "id", 1L);
-        Department department = new Department("department");
-        OnlineCourse onlineCourse = new OnlineCourse("onlineCourse", department, "url");
 
-        when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
-        when(courseRepository.findWithLockById(2L)).thenReturn(Optional.of(onlineCourse));
         when(userRepository.findCourseSummariesByUserIds(List.of(1L), null))
             .thenReturn(List.of(new CourseSummaryRow(1L, 2L, "onlineCourse")));
 
-        UserResponse result = userService.enroll(1L, 2L);
+        UserResponse result = userService.describe(user);
 
-        assertThat(user.getCourses()).contains(onlineCourse);
-        assertThat(onlineCourse.getUsers()).contains(user);
-
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-
-        EnrollUserEvent event = eventCaptor.getValue();
-
-        assertThat(event.getUserId()).isEqualTo(1L);
-        assertThat(event.getCourseId()).isEqualTo(2L);
-        assertThat(event.getCourseName()).isEqualTo(onlineCourse.getName());
+        //the join rows have to be on the wire before the summary query runs
+        verify(userRepository).flush();
 
         assertThat(result.id()).isEqualTo(user.getId());
         assertThat(result.name()).isEqualTo(user.getName());
         assertThat(result.courses())
-            .containsExactly(new CourseSummaryResponse(2L, onlineCourse.getName()));
-
-    }
-
-    @Test
-    @DisplayName("enroll user not found")
-    void enrollUserNotFound() {
-        when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.enroll(1L, 2L))
-            .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessage("User with id 1 not found");
-
-        verify(eventPublisher, never()).publishEvent(any(EnrollUserEvent.class));
-    }
-
-    @Test
-    @DisplayName("enroll course not found")
-    void enrollCourseNotFound() {
-        User user = new User(
-            "Ana",
-            "ana@uni.bg",
-            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-            new Role(RoleName.STUDENT));
-
-        when(userRepository.findWithCoursesById(1L)).thenReturn(Optional.of(user));
-        when(courseRepository.findWithLockById(2L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.enroll(1L, 2L))
-            .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessage("Course with id 2 not found");
-
-        verify(eventPublisher, never()).publishEvent(any(EnrollUserEvent.class));
+            .containsExactly(new CourseSummaryResponse(2L, "onlineCourse"));
     }
 }
