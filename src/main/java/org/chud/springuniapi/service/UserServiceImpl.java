@@ -18,7 +18,6 @@ import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.repository.CourseRepository;
-import org.chud.springuniapi.repository.RefreshTokenRepository;
 import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
@@ -45,7 +44,6 @@ public class UserServiceImpl implements IUserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final IRefreshTokenService refreshTokenService;
-    private final RefreshTokenRepository refreshTokenRepository;
 
     public UserServiceImpl(
             UserRepository userRepository,
@@ -53,7 +51,7 @@ public class UserServiceImpl implements IUserService {
             UserMapper userMapper,
             ApplicationEventPublisher eventPublisher,
             RoleRepository roleRepository, PasswordEncoder passwordEncoder,
-        IRefreshTokenService refreshTokenService, RefreshTokenRepository refreshTokenRepository) {
+        IRefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.userMapper = userMapper;
@@ -61,7 +59,6 @@ public class UserServiceImpl implements IUserService {
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
-        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Override
@@ -238,11 +235,6 @@ public class UserServiceImpl implements IUserService {
         for (Course course : Set.copyOf(user.getCourses())) {
             user.withdraw(course);
         }
-
-        //refresh_tokens.user_id has no cascade, and revoking only sets revoked_at.
-        //The rows have to actually go, and go first.
-        refreshTokenRepository.deleteByUserId(id);
-        refreshTokenRepository.flush();
 
         userRepository.delete(user);
     }

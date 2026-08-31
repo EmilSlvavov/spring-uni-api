@@ -50,14 +50,19 @@ public class AuthenticationController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
 
+        //authenticate the current user
         Authentication authentication = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(request.email(), request.password()));
 
+        //get the principal from the authentication and cast it into myuserdetails
         MyUserDetails myUserDetails = (MyUserDetails) authentication.getPrincipal();
 
+        //null check
         if (myUserDetails == null) {
             throw new LoginException("Empty myUserDetails");
         }
+
+        //issue access token and refresh token
         return new LoginResponse(jwtService.issue(myUserDetails),
             ttl,
             refreshTokenService.issueFor(myUserDetails.id()),

@@ -21,7 +21,6 @@ import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.mapper.UserMapperImpl;
 import org.chud.springuniapi.repository.CourseRepository;
-import org.chud.springuniapi.repository.RefreshTokenRepository;
 import org.chud.springuniapi.repository.RoleRepository;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
@@ -72,7 +71,6 @@ class UserServiceTest {
     @Mock
     private IRefreshTokenService refreshTokenService;
 
-    private RefreshTokenRepository refreshTokenRepository;
 
     private UserServiceImpl userService;
 
@@ -85,8 +83,7 @@ class UserServiceTest {
             eventPublisher,
             roleRepository,
             passwordEncoder,
-            refreshTokenService,
-            refreshTokenRepository);
+            refreshTokenService);
     }
 
     @Test
