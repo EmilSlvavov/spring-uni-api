@@ -37,7 +37,8 @@ public class AuthenticationController {
     // the access token has already expired
     @PostMapping("/refresh")
     public LoginResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        return authenticationFacade.refresh(request);
+        return authenticationFacade.
+                refresh(request);
     }
 
 

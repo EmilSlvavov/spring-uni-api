@@ -23,6 +23,12 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.time.Duration;
+import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -37,52 +43,67 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         http
-            .addFilterBefore(new BearerTokenFilter(jwtService),
-                UsernamePasswordAuthenticationFilter.class)
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(
-                session ->
-                    session
-                        .sessionCreationPolicy(
-                            SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
+                .addFilterBefore(new BearerTokenFilter(jwtService),
+                        UsernamePasswordAuthenticationFilter.class)
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(
+                        session ->
+                                session
+                                        .sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
 
-                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
-                // role endpoints
-                .requestMatchers(HttpMethod.GET, "/api/roles/**").hasRole("ADMIN")
+                        // role endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/roles/**").hasRole("ADMIN")
 
-                // auth endpoints
-                .requestMatchers("/api/auth/**").permitAll()
+                        // auth endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
 
-                .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/users/display").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/users/softDeleted/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/users/softDeleted/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/users/display").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/users/softDeleted/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/users/softDeleted/**").hasRole("ADMIN")
 
-                // courses endpoints
-                .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/courses/**")
-                .hasAnyRole("PROFESSOR", "ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("PROFESSOR", "ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/courses/softDeleted/**")
-                .hasAnyRole("PROFESSOR", "ADMIN")
-                //Soft delete is for professors, hard is not.
-                .requestMatchers(HttpMethod.DELETE, "/api/courses/softDeleted/**")
-                .hasAnyRole("PROFESSOR", "ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasRole("ADMIN")
+                        // courses endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/courses/**")
+                        .hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/courses/softDeleted/**")
+                        .hasAnyRole("PROFESSOR", "ADMIN")
+                        //Soft delete is for professors, hard is not.
+                        .requestMatchers(HttpMethod.DELETE, "/api/courses/softDeleted/**")
+                        .hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasRole("ADMIN")
 
-                // department endpoints
-                .requestMatchers(HttpMethod.GET, "/api/departments/softDeleted/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/departments/**").permitAll()
-                .requestMatchers("/api/departments/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .httpBasic(Customizer.withDefaults());
+                        // department endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/departments/softDeleted/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/departments/**").permitAll()
+                        .requestMatchers("/api/departments/**").hasRole("ADMIN")
+                        .anyRequest().authenticated()
+                )
+                .httpBasic(Customizer.withDefaults());
 
         return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setMaxAge(Duration.ofHours(1));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", config);
+        return source;
     }
 
     @Bean
@@ -102,15 +123,15 @@ public class SecurityConfig {
     JwtDecoder jwtDecoder(@Value("${user.jwt.secret}") String secret) {
         SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key)
-            .macAlgorithm(MacAlgorithm.HS256)
-            .build();
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
     }
 
 
     //exposes the ProviderManager Spring already built
     @Bean
     AuthenticationManager authenticationManager(AuthenticationConfiguration config)
-        throws Exception {
+            throws Exception {
         return config.getAuthenticationManager();
     }
 }
