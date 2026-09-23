@@ -3,7 +3,7 @@ package org.chud.springuniapi.repository;
 import jakarta.persistence.LockModeType;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.repository.projection.DynamicCourseProjectionMarker;
-import org.chud.springuniapi.repository.projection.StudentSummaryRow;
+import org.chud.springuniapi.repository.projection.UserSummaryRow;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -38,14 +38,14 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     List<Course> findCourseByDeleted(boolean isDeleted);
 
-    //Soft delete filter for the students of a course. deleted = null means "do not filter"
+    //Soft delete filter for the users of a course. enabled = null means "do not filter"
     @Query("""
-            select new org.chud.springuniapi.repository.projection.StudentSummaryRow(c.id, s.id, s.name)
+            select new org.chud.springuniapi.repository.projection.UserSummaryRow(c.id, s.id, s.name)
             from Course c
-            join c.students s
+            join c.users s
             where c.id in :courseIds
               and (:deleted is null or s.deleted = :deleted)
             order by c.id, s.id
             """)
-    List<StudentSummaryRow> findStudentSummariesByCourseIds(Collection<Long> courseIds, Boolean deleted);
+    List<UserSummaryRow> findUserSummariesByCourseIds(Collection<Long> courseIds, Boolean deleted);
 }

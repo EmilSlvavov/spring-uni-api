@@ -3,6 +3,7 @@ package org.chud.springuniapi.repository;
 import jakarta.persistence.LockModeType;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -19,6 +20,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     //find with contacts
     @Override
     @EntityGraph(attributePaths = "contacts")
+    @NonNull
     List<Department> findAll();
 
     //find with contacts by id
@@ -31,7 +33,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     @EntityGraph(attributePaths = "contacts")
     List<Department> findDepartmentByDeleted(boolean isDeleted);
 
-    //Soft delete filter for the courses of a department. deleted = null means "do not filter"
+    //Soft delete filter for the courses of a department. enabled = null means "do not filter"
     @Query("""
             select new org.chud.springuniapi.repository.projection.CourseSummaryRow(d.id, c.id, c.name)
             from Department d

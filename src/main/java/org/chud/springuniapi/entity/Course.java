@@ -30,7 +30,7 @@ public abstract class Course extends BaseEntity {
     private Department department;
 
     @ManyToMany(mappedBy = "courses")
-    private Set<Student> students = new HashSet<>();
+    private Set<User> users = new HashSet<>();
 
 
     public Course(String name, Department department) {

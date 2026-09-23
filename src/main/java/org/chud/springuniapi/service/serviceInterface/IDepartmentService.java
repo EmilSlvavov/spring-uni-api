@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface IDepartmentService {
 
-    //deleted = null means the ?deleted param was absent, so the courses are not filtered
+    //enabled = null means the ?enabled param was absent, so the courses are not filtered
     List<DepartmentResponse> findAll(Boolean deleted);
 
     DepartmentResponse findById(Long id, Boolean deleted);

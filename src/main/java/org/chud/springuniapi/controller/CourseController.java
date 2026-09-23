@@ -7,6 +7,7 @@ import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
+import org.chud.springuniapi.service.facade.ICourseCatalogFacade;
 import org.chud.springuniapi.service.serviceInterface.ICourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,9 +20,11 @@ import java.util.List;
 public class CourseController {
 
     private final ICourseService courseService;
+    private final ICourseCatalogFacade courseCatalogFacade;
 
-    public CourseController(ICourseService courseService) {
+    public CourseController(ICourseService courseService, ICourseCatalogFacade courseCatalogFacade) {
         this.courseService = courseService;
+        this.courseCatalogFacade = courseCatalogFacade;
     }
 
     @GetMapping
@@ -29,7 +32,7 @@ public class CourseController {
         @RequestParam(required = false) Boolean deleted) {
         return departmentId == null
                 ? courseService.findAll(deleted)
-                : courseService.findByDepartment(departmentId, deleted);
+                : courseCatalogFacade.findByDepartment(departmentId, deleted);
     }
 
     @GetMapping("/{id}")
@@ -40,7 +43,7 @@ public class CourseController {
     //endpoint for showcasing projection
     @GetMapping("/summary")
     public List<CourseListItemResponse> getSummariesByDepartment(@RequestParam Long departmentId) {
-        return courseService.findSummariesByDepartment(departmentId);
+        return courseCatalogFacade.findSummariesByDepartment(departmentId);
     }
 
     @GetMapping("/softDeleted/{isDeleted}")
@@ -50,13 +53,13 @@ public class CourseController {
 
     @PostMapping("/online")
     public ResponseEntity<CourseResponse> createOnline(@Valid @RequestBody CreateOnlineCourseRequest request) {
-        CourseResponse created = courseService.createOnline(request);
+        CourseResponse created = courseCatalogFacade.createOnline(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PostMapping("/onsite")
     public ResponseEntity<CourseResponse> createOnsite(@Valid @RequestBody CreateOnsiteCourseRequest request) {
-        CourseResponse created = courseService.createOnsite(request);
+        CourseResponse created = courseCatalogFacade.createOnsite(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 

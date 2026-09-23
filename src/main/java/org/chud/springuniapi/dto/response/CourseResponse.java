@@ -14,9 +14,9 @@ public record CourseResponse(Long id,
                              CourseType type,
                              String meetingUrl,
                              Long roomNumber,
-                             List<StudentSummaryResponse> students
+                             List<UserSummaryResponse> users
                              ) {
     public CourseResponse {
-        students = students == null ? List.of() : List.copyOf(students);
+        users = users == null ? List.of() : List.copyOf(users);
     }
 }

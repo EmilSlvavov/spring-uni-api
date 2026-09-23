@@ -3,15 +3,18 @@ package org.chud.springuniapi.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.slf4j.MDC;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import static org.chud.springuniapi.logging.CorrelationFilter.TRACE_ID;
 
@@ -138,5 +141,102 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(BusinessRuleViolationException.class)
+    public ProblemDetail handleBusinessRuleViolation(BusinessRuleViolationException ex, HttpServletRequest request){
 
+        log.warn("{} {} -> 422 business logic violation: {}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                ex.getMessage()
+        );
+        problemDetail.setTitle("Business Logic Violation");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+
+    //for when @PathVariable fails validation of @NotAdmin or others that could be put there
+    //like @Min etc.
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ProblemDetail handleParameterValidation(HandlerMethodValidationException ex,
+                                                   HttpServletRequest request) {
+
+        Map<String, String> errors = new LinkedHashMap<>();
+
+        for (ParameterValidationResult result : ex.getParameterValidationResults()) {
+
+            //Real names only exist because the Boot parent compiles with -parameters.
+            //Without it this would read arg0, so fall back to the position.
+            String parameterName = result.getMethodParameter().getParameterName();
+            if (parameterName == null) {
+                parameterName = "parameter" + result.getMethodParameter().getParameterIndex();
+            }
+
+            for (MessageSourceResolvable error : result.getResolvableErrors()) {
+                String message = error.getDefaultMessage() == null
+                        ? "invalid value"
+                        : error.getDefaultMessage();
+
+                //Same overwrite behavior as the FieldError loop above: last message wins
+                errors.put(parameterName, message);
+            }
+        }
+
+        log.warn("{} {} -> 400 validation failed: {}", request.getMethod(), request.getRequestURI(), errors);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed"
+        );
+
+        problemDetail.setTitle("Validation Failed");
+
+        problemDetail.setProperty("errors", errors);
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(LoginException.class)
+    public ProblemDetail handleLoginException(LoginException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 500 login violation: {}",
+            request.getMethod(),
+            request.getRequestURI(),
+            ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Login Exception"
+        );
+        problemDetail.setTitle("Login Exception");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex,
+        HttpServletRequest request) {
+
+        log.warn("{} {} -> 401 refresh rejected: {}",
+            request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNAUTHORIZED,
+            "Refresh token is invalid or expired"); // generic on purpose
+
+        problemDetail.setTitle("Invalid Refresh Token");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
 }

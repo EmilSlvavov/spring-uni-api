@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "spring-uni-api",
-    "description": "University Management API - full coverage.\n\nCovers all 28 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (student profile; the student_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/students/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its students, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\nRun top to bottom; folders 5 and 6 restore every flag they set, and Cleanup removes everything it created.",
+    "description": "University Management API - full coverage.\n\nCovers all 34 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (user profile; the user_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/users/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its users, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\n- roles: a read-only catalogue over the RoleName enum, plus PATCH /api/users/{id}/role\n- refresh tokens: opaque, hashed at rest, rotated on every use, with reuse detection\n\nRun top to bottom; folders 5, 6, 7 and 8 restore every flag they set, and Cleanup removes everything it created.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,12 +10,149 @@
     { "key": "departmentName", "value": "" },
     { "key": "courseId", "value": "" },
     { "key": "onsiteCourseId", "value": "" },
-    { "key": "studentId", "value": "" },
+    { "key": "userId", "value": "" },
     { "key": "throwawayDepartmentId", "value": "" },
     { "key": "throwawayCourseId", "value": "" },
-    { "key": "throwawayStudentId", "value": "" }
+    { "key": "throwawayUserId", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "adminEmail", "value": "admin@email.test" },
+    { "key": "seedPassword", "value": "SET_ME_TO_YOUR_SEED_PASSWORD" },
+    { "key": "newUserPassword", "value": "Str0ngPassw0rd" },
+    { "key": "registeredEmail", "value": "" },
+    { "key": "escalationEmail", "value": "" },
+    { "key": "escalationToken", "value": "" },
+    { "key": "adminRefreshToken", "value": "" },
+    { "key": "studentRoleId", "value": "" },
+    { "key": "roleUserId", "value": "" },
+    { "key": "roleUserEmail", "value": "" },
+    { "key": "roleUserToken", "value": "" },
+    { "key": "refreshUserId", "value": "" },
+    { "key": "refreshUserEmail", "value": "" },
+    { "key": "refreshedAccess", "value": "" },
+    { "key": "rtOld", "value": "" },
+    { "key": "rtNew", "value": "" },
+    { "key": "rtLogout", "value": "" },
+    { "key": "rtRoleChange", "value": "" },
+    { "key": "rtSoftDelete", "value": "" }
   ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
   "item": [
+    {
+      "name": "0 Auth (run this folder first)",
+      "description": "Registration and login. Every other folder needs the {{token}} this folder sets.\n\nOrder matters: the admin login is LAST so {{token}} ends up holding an ADMIN token, which is what the remaining folders assume.\n\nSet the seedPassword collection variable to whatever SEED_PASSWORD your app started with, or nothing here will authenticate.",
+      "item": [
+        {
+          "name": "POST /api/auth/register - public self-registration",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('no password echoed back', () => pm.expect(body).to.not.have.property('password'));",
+            "pm.collectionVariables.set('registeredEmail', body.email);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Self Registered\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/register - privilege escalation attempt (role is ignored)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "// RegisterRequest has no role component, so Jackson drops the injected field.",
+            "// The response cannot show the role, so the next two requests prove it instead.",
+            "pm.collectionVariables.set('escalationEmail', pm.response.json().email);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"ADMIN\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the escalation attempt",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('escalationToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{escalationEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "GET /api/users - escalation token must be REFUSED (403)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden - the injected role was ignored', () => pm.response.to.have.status(403));",
+            "// 403 not 401: the token is valid and the user is known, they simply are not ADMIN.",
+            "// A 200 here would mean public registration can mint admins."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{escalationToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - WRONG password (401 once Section 9 lands)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "// Currently 500: BadCredentialsException reaches no handler yet.",
+            "// Section 9 adds one and this becomes 401.",
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"definitely-not-the-password\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as ADMIN (sets {{token}} for every other folder)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('token returned', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+            "pm.test('expiresIn is in SECONDS', () => pm.expect(body.expiresIn).to.be.above(60));",
+            "pm.test('login now returns a refresh token too', () => {",
+            "    pm.expect(body.refreshToken).to.be.a('string').and.not.empty;",
+            "    pm.expect(body.refreshExpiresIn).to.eql(604800);",
+            "});",
+            "// Paste body.token into jwt.io - the payload is readable without any key.",
+            "// That is the point of section 7.3: signed, not encrypted.",
+            "pm.test('the ADMIN role is in the claim', () => {",
+            "    const part = body.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+            "    const padded = part + '==='.slice((part.length + 3) % 4);",
+            "    let json;",
+            "    try { json = require('buffer').Buffer.from(padded, 'base64').toString('utf8'); }",
+            "    catch (e) { json = CryptoJS.enc.Base64.parse(padded).toString(CryptoJS.enc.Utf8); }",
+            "    pm.expect(JSON.parse(json).roles).to.include('ROLE_ADMIN');",
+            "});",
+            "pm.collectionVariables.set('token', body.token);",
+            "pm.collectionVariables.set('adminRefreshToken', body.refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{seedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        }
+      ]
+    },
     {
       "name": "1 Departments (+ @ElementCollection contacts)",
       "item": [
@@ -227,7 +364,7 @@
             "    });",
             "});",
             "// CHECK THE SQL: this should select roughly c.id, c.name, d.name -",
-            "// three columns, not select *. Compare with GET /api/students/display."
+            "// three columns, not select *. Compare with GET /api/users/display."
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": {
@@ -285,10 +422,10 @@
       ]
     },
     {
-      "name": "3 Students (+ @SecondaryTable profile + open projection)",
+      "name": "3 Users (+ @SecondaryTable profile + open projection)",
       "item": [
         {
-          "name": "POST /api/students - create",
+          "name": "POST /api/users - create",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('201 Created', () => pm.response.to.have.status(201));",
             "const body = pm.response.json();",
@@ -297,29 +434,29 @@
             "    pm.expect(body).to.not.have.property('bio');",
             "    pm.expect(body).to.not.have.property('dateOfBirth');",
             "});",
-            "// SSMS: SELECT * FROM student_profiles -> still 0 rows.",
+            "// SSMS: SELECT * FROM user_profiles -> still 0 rows.",
             "// Hibernate skips the secondary insert while every column is null.",
-            "pm.collectionVariables.set('studentId', body.id);"
+            "pm.collectionVariables.set('userId', body.id);"
           ] } }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
-          "name": "GET /api/students - list all",
+          "name": "GET /api/users - list all",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "// SQL to expect: ONE select joining student_courses (the @EntityGraph)",
-            "// plus a join to student_profiles (the @SecondaryTable)."
+            "// SQL to expect: ONE select joining user_courses (the @EntityGraph)",
+            "// plus a join to user_profiles (the @SecondaryTable)."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] } }
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] } }
         },
         {
-          "name": "PUT /api/students/{id} - rename",
+          "name": "PUT /api/users/{id} - rename",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('name was changed', () => pm.expect(pm.response.json().name).to.eql('Ana Petrova-Ivanova'));"
@@ -328,39 +465,39 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Petrova-Ivanova\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] }
           }
         },
         {
-          "name": "PUT /api/students/{id}/profile - first write creates the secondary row",
+          "name": "PUT /api/users/{id}/profile - first write creates the secondary row",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('bio stored', () => pm.expect(body.bio).to.eql('Third-year CS student.'));",
+            "pm.test('bio stored', () => pm.expect(body.bio).to.eql('Third-year CS user.'));",
             "pm.test('dateOfBirth stored as ISO date', () => pm.expect(body.dateOfBirth).to.eql('2003-04-11'));",
-            "// SSMS NOW: SELECT * FROM student_profiles -> 1 row.",
-            "// Watch the SQL for an INSERT into student_profiles, not an UPDATE."
+            "// SSMS NOW: SELECT * FROM user_profiles -> 1 row.",
+            "// Watch the SQL for an INSERT into user_profiles, not an UPDATE."
           ] } }],
           "request": {
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Third-year CS student.\",\n  \"dateOfBirth\": \"2003-04-11\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Third-year CS user.\",\n  \"dateOfBirth\": \"2003-04-11\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
-          "name": "GET /api/students/{id} - profile read back from the secondary table",
+          "name": "GET /api/users/{id} - profile read back from the secondary table",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('bio persisted across the request', () => pm.expect(body.bio).to.eql('Third-year CS student.'));",
+            "pm.test('bio persisted across the request', () => pm.expect(body.bio).to.eql('Third-year CS user.'));",
             "pm.test('dateOfBirth persisted', () => pm.expect(body.dateOfBirth).to.eql('2003-04-11'));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] } }
         },
         {
-          "name": "PUT /api/students/{id}/profile - PUT replaces (omitted field becomes null)",
+          "name": "PUT /api/users/{id}/profile - PUT replaces (omitted field becomes null)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
@@ -371,11 +508,11 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Updated bio.\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
-          "name": "GET /api/students/display - OPEN projection",
+          "name": "GET /api/users/display - OPEN projection",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const items = pm.response.json();",
@@ -390,33 +527,33 @@
             "pm.test('no proxy internals leaked', () => {",
             "    items.forEach(i => pm.expect(i).to.not.have.property('target'));",
             "});",
-            "// CHECK THE SQL: this selects EVERY student column and joins",
-            "// student_profiles too - even though the response uses only name+email.",
+            "// CHECK THE SQL: this selects EVERY user column and joins",
+            "// user_profiles too - even though the response uses only name+email.",
             "// That is the cost of an open (@Value/SpEL) projection."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/display", "host": ["{{baseUrl}}"], "path": ["api", "students", "display"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/display", "host": ["{{baseUrl}}"], "path": ["api", "users", "display"] } }
         },
         {
-          "name": "POST /api/students - create throwaway (for the delete below)",
+          "name": "POST /api/users - create throwaway (for the delete below)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('201 Created', () => pm.response.to.have.status(201));",
-            "pm.collectionVariables.set('throwawayStudentId', pm.response.json().id);"
+            "pm.collectionVariables.set('throwawayUserId', pm.response.json().id);"
           ] } }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway Student\",\n  \"email\": \"{{$randomEmail}}\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Throwaway User\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
-          "name": "DELETE /api/students/{id}",
+          "name": "DELETE /api/users/{id}",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{throwawayStudentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{throwawayStudentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{throwawayUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{throwawayUserId}}"] } }
         }
       ]
     },
@@ -427,27 +564,27 @@
           "name": "POST enroll in the ONLINE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('course now appears on the student', () => {",
+            "pm.test('course now appears on the user', () => {",
             "    const expected = Number(pm.collectionVariables.get('courseId'));",
             "    pm.expect(pm.response.json().courses.map(c => c.id)).to.include(expected);",
             "});"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{courseId}}"] } }
         },
         {
           "name": "POST enroll in the ONSITE course (subtypes share the join table)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('student is now in both courses', () => {",
+            "pm.test('user is now in both courses', () => {",
             "    const ids = pm.response.json().courses.map(c => c.id);",
             "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId')));",
             "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('onsiteCourseId')));",
             "});",
-            "// student_courses is inherited from Course, so one join table serves both subtypes."
+            "// user_courses is inherited from Course, so one join table serves both subtypes."
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         },
         {
           "name": "POST enroll again - idempotent (Set semantics)",
@@ -459,7 +596,7 @@
             "});"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{courseId}}"] } }
         },
         {
           "name": "DELETE withdraw from the ONSITE course",
@@ -472,7 +609,7 @@
             "});"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         }
       ]
     },
@@ -596,53 +733,53 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{courseId}}"] } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - flag the student",
+          "name": "DELETE /api/users/softDeleted/{id} - flag the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
             "pm.test('flag flipped to true', () => pm.expect(body.isDeleted).to.be.true);",
             "pm.test('enrollments still mapped', () => pm.expect(body.courses.map(c => c.id)).to.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('secondary-table bio still mapped', () => pm.expect(body.bio).to.eql('Updated bio.'));",
-            "// The student keeps their student_courses rows - flagging changes one column."
+            "// The user keeps their user_courses rows - flagging changes one column."
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/true - listed with profile and courses",
+          "name": "GET /api/users/softDeleted/true - listed with profile and courses",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const rows = pm.response.json();",
-            "const mine = rows.find(s => s.id === Number(pm.collectionVariables.get('studentId')));",
-            "pm.test('our student is listed', () => pm.expect(mine).to.not.be.undefined);",
+            "const mine = rows.find(s => s.id === Number(pm.collectionVariables.get('userId')));",
+            "pm.test('our user is listed', () => pm.expect(mine).to.not.be.undefined);",
             "pm.test('courses fetched by the @EntityGraph', () => pm.expect(mine.courses).to.be.an('array').that.is.not.empty);",
             "pm.test('dateOfBirth key still absent - JsonInclude NON_NULL', () => pm.expect(mine).to.not.have.property('dateOfBirth'));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "true"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "true"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/false - no longer in the active list",
+          "name": "GET /api/users/softDeleted/false - no longer in the active list",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('our student dropped out of this list', () => {",
+            "pm.test('our user dropped out of this list', () => {",
             "    const ids = pm.response.json().map(s => s.id);",
-            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('studentId')));",
+            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('userId')));",
             "});",
-            "// But GET /api/students and GET /api/students/display still return them."
+            "// But GET /api/users and GET /api/users/display still return them."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "false"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "false"] } }
         },
         {
-          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/users/softDeleted/{id} - restore the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag flipped back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);",
             "// Everything is left exactly as folders 6 and 7 expect it."
           ] } }],
           "request": { "method": "PATCH", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         }
       ]
     },
@@ -723,47 +860,47 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "POST re-enroll the student in the ONSITE course",
+          "name": "POST re-enroll the user in the ONSITE course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "// Folder 4 withdrew this enrolment; we need it back so the course",
-            "// below actually has students to filter."
+            "// below actually has users to filter."
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "DELETE /api/students/softDeleted/{id} - flag the student",
+          "name": "DELETE /api/users/softDeleted/{id} - flag the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('student flagged', () => pm.expect(pm.response.json().isDeleted).to.be.true);"
+            "pm.test('user flagged', () => pm.expect(pm.response.json().isDeleted).to.be.true);"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/courses/{id} - no parameter shows the soft-deleted student",
+          "name": "GET /api/courses/{id} - no parameter shows the soft-deleted user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "pm.test('students are exposed on a course now', () => pm.expect(body.students).to.be.an('array'));",
-            "pm.test('the flagged student is still listed', () => {",
-            "    pm.expect(body.students.map(s => s.id)).to.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('users are exposed on a course now', () => pm.expect(body.users).to.be.an('array'));",
+            "pm.test('the flagged user is still listed', () => {",
+            "    pm.expect(body.users.map(s => s.id)).to.include(Number(pm.collectionVariables.get('userId')));",
             "});",
-            "pm.test('nested students are flat summaries - no recursion', () => {",
-            "    body.students.forEach(s => pm.expect(s).to.not.have.property('courses'));",
+            "pm.test('nested users are flat summaries - no recursion', () => {",
+            "    body.users.forEach(s => pm.expect(s).to.not.have.property('courses'));",
             "});"
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": { "raw": "{{baseUrl}}/api/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{onsiteCourseId}}"] } }
         },
         {
-          "name": "GET /api/courses/{id}?deleted=false - active students only",
+          "name": "GET /api/courses/{id}?deleted=false - active users only",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('flagged student filtered out', () => {",
-            "    const ids = pm.response.json().students.map(s => s.id);",
-            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('flagged user filtered out', () => {",
+            "    const ids = pm.response.json().users.map(s => s.id);",
+            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('userId')));",
             "});"
           ] } }],
           "request": { "method": "GET", "header": [],
@@ -774,12 +911,12 @@
             } }
         },
         {
-          "name": "GET /api/courses/{id}?deleted=true - soft-deleted students only",
+          "name": "GET /api/courses/{id}?deleted=true - soft-deleted users only",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('only the flagged student', () => {",
-            "    const ids = pm.response.json().students.map(s => s.id);",
-            "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('studentId')));",
+            "pm.test('only the flagged user', () => {",
+            "    const ids = pm.response.json().users.map(s => s.id);",
+            "    pm.expect(ids).to.include(Number(pm.collectionVariables.get('userId')));",
             "});",
             "// The course is active - again, the flag describes the nested rows."
           ] } }],
@@ -791,16 +928,16 @@
             } }
         },
         {
-          "name": "PATCH /api/students/softDeleted/{id} - restore the student",
+          "name": "PATCH /api/users/softDeleted/{id} - restore the user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('flag back to false', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
           ] } }],
           "request": { "method": "PATCH", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{userId}}"] } }
         },
         {
-          "name": "GET /api/students/{id}?deleted=true - the student side of the same switch",
+          "name": "GET /api/users/{id}?deleted=true - the user side of the same switch",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('no soft-deleted courses right now, so the list is empty', () => {",
@@ -811,8 +948,8 @@
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/students/{{studentId}}?deleted=true",
-              "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"],
+              "raw": "{{baseUrl}}/api/users/{{userId}}?deleted=true",
+              "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"],
               "query": [{ "key": "deleted", "value": "true" }]
             } }
         },
@@ -827,12 +964,623 @@
             "});"
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "{{onsiteCourseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/{{onsiteCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "{{onsiteCourseId}}"] } }
         }
       ]
     },
     {
-      "name": "7 Error cases",
+      "name": "7 Roles (read-only catalogue + assignment)",
+      "description": "Role is an @Enumerated entity seeded from the RoleName enum, so the catalogue is READ ONLY - there is no POST/PUT/DELETE on /api/roles and there must never be one.\n\nThe single mutating role operation lives on the user, because the user is the aggregate being changed: PATCH /api/users/{id}/role.\n\nThis folder creates its own throwaway user so it never disturbs {{userId}} or the admin {{token}}. Cleanup removes it.",
+      "item": [
+        {
+          "name": "GET /api/roles - full catalogue (ADMIN)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const roles = pm.response.json();",
+            "pm.test('one row per RoleName constant', () => {",
+            "    pm.expect(roles).to.be.an('array').with.lengthOf(3);",
+            "});",
+            "pm.test('every constant is seeded', () => {",
+            "    const names = roles.map(r => r.roleName);",
+            "    pm.expect(names).to.have.members(['STUDENT', 'PROFESSOR', 'ADMIN']);",
+            "});",
+            "pm.test('enum serialized as a name, not an ordinal', () => {",
+            "    pm.expect(roles[0].roleName).to.be.a('string');",
+            "});",
+            "pm.test('BaseEntity internals are NOT leaked', () => {",
+            "    // RoleResponse is a hand written record precisely so version /",
+            "    // createdAt / updatedAt / deleted never reach the client.",
+            "    pm.expect(roles[0]).to.not.have.property('version');",
+            "    pm.expect(roles[0]).to.not.have.property('createdAt');",
+            "    pm.expect(roles[0]).to.not.have.property('deleted');",
+            "});",
+            "pm.collectionVariables.set('studentRoleId', roles.find(r => r.roleName === 'STUDENT').id);"
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles", "host": ["{{baseUrl}}"], "path": ["api", "roles"] } }
+        },
+        {
+          "name": "GET /api/roles/{id} - by id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('is the STUDENT row', () => pm.expect(pm.response.json().roleName).to.eql('STUDENT'));"
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles/{{studentRoleId}}", "host": ["{{baseUrl}}"], "path": ["api", "roles", "{{studentRoleId}}"] } }
+        },
+        {
+          "name": "GET /api/roles/name/PROFESSOR - by enum name",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('resolved by name', () => pm.expect(pm.response.json().roleName).to.eql('PROFESSOR'));"
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles/name/PROFESSOR", "host": ["{{baseUrl}}"], "path": ["api", "roles", "name", "PROFESSOR"] } }
+        },
+        {
+          "name": "GET /api/roles/name/WIZARD -> 400 (not a RoleName constant)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "// Spring fails to convert the path segment to the enum, so the",
+            "// controller method is never entered and the service never runs."
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles/name/WIZARD", "host": ["{{baseUrl}}"], "path": ["api", "roles", "name", "WIZARD"] } }
+        },
+        {
+          "name": "GET /api/roles/999999 -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+            "pm.test('RFC 9457 problem body', () => {",
+            "    const body = pm.response.json();",
+            "    pm.expect(body).to.have.property('title');",
+            "    pm.expect(body).to.have.property('traceId');",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles/999999", "host": ["{{baseUrl}}"], "path": ["api", "roles", "999999"] } }
+        },
+        {
+          "name": "GET /api/roles/abc -> 400 (id is a Long)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles/abc", "host": ["{{baseUrl}}"], "path": ["api", "roles", "abc"] } }
+        },
+        {
+          "name": "GET /api/roles - anonymous -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "// 401 not 403: nobody is authenticated, so there is no identity to refuse."
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles", "host": ["{{baseUrl}}"], "path": ["api", "roles"] } }
+        },
+        {
+          "name": "POST /api/users - create the role-test user (STUDENT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('roleUserId', body.id);",
+            "pm.collectionVariables.set('roleUserEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Role Test User\",\n  \"email\": \"role-{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the role-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('roleUserToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{roleUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "GET /api/roles - as STUDENT -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+            "// The catalogue is admin metadata. 403 not 401: we know who they are."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{roleUserToken}}", "type": "string" }] },
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/roles", "host": ["{{baseUrl}}"], "path": ["api", "roles"] }
+          }
+        },
+        {
+          "name": "PATCH /api/users/{id}/role - a STUDENT cannot promote themselves -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+            "// @PreAuthorize(\"hasRole('ADMIN')\") only - self-access does NOT apply here,",
+            "// otherwise every student could make themselves an admin."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{roleUserToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"ADMIN\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "PATCH /api/users/{id}/role - ADMIN promotes to PROFESSOR",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('still the same user', () => {",
+            "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('roleUserId')));",
+            "});",
+            "// UserResponse carries no role field, so the response body cannot prove",
+            "// the change landed. The next request proves it against the DATABASE."
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"PROFESSOR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - the promotion was actually PERSISTED",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "",
+            "// Regression test for the clearAutomatically trap.",
+            "// assignRole() calls revokeAllFor(), whose bulk UPDATE is annotated",
+            "// @Modifying(clearAutomatically = true). That clears the persistence",
+            "// context. Without flushAutomatically = true the pending user.setRole()",
+            "// change is DISCARDED - the PATCH above still answers 200 because the",
+            "// detached Java object keeps the new value in memory, but the users row",
+            "// never changes.",
+            "// Login re-reads the row through MyUserDetailsService, so the roles claim",
+            "// below is the DATABASE talking, not the previous response.",
+            "function jwtPayload(token) {",
+            "    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+            "    const padded = part + '==='.slice((part.length + 3) % 4);",
+            "    let json;",
+            "    try { json = require('buffer').Buffer.from(padded, 'base64').toString('utf8'); }",
+            "    catch (e) { json = CryptoJS.enc.Base64.parse(padded).toString(CryptoJS.enc.Utf8); }",
+            "    return JSON.parse(json);",
+            "}",
+            "",
+            "const claims = jwtPayload(pm.response.json().token);",
+            "pm.test('roles claim reflects the promotion', () => {",
+            "    pm.expect(claims.roles).to.include('ROLE_PROFESSOR');",
+            "});",
+            "pm.test('the old role is gone', () => {",
+            "    pm.expect(claims.roles).to.not.include('ROLE_STUDENT');",
+            "});",
+            "pm.test('subject is the email, userId is a separate claim', () => {",
+            "    pm.expect(claims.sub).to.eql(pm.collectionVariables.get('roleUserEmail'));",
+            "    pm.expect(claims.userId).to.eql(Number(pm.collectionVariables.get('roleUserId')));",
+            "});"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{roleUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "PATCH role - promoting an ENROLLED user to ADMIN -> 422",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('422 Unprocessable Content', () => pm.response.to.have.status(422));",
+            "pm.test('business rule is explained', () => {",
+            "    pm.expect(pm.response.json().detail).to.contain('ADMIN');",
+            "});",
+            "// User.enroll() refuses to enroll an ADMIN, so promoting somebody who",
+            "// already holds courses would leave user_courses rows that enroll()",
+            "// itself would never have created. {{userId}} still has the online course."
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"ADMIN\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "role"] }
+          }
+        },
+        {
+          "name": "PATCH role - unknown role name -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "// Jackson cannot deserialize 'DEAN' into RoleName, so @Valid never runs."
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"DEAN\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "PATCH role - null role -> 400 (@NotNull)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('field level error is reported', () => {",
+            "    pm.expect(pm.response.json()).to.have.property('errors');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": null\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "PATCH role on a missing user -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/999999/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "999999", "role"] }
+          }
+        },
+        {
+          "name": "PATCH role - demote back to STUDENT (restore state)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "// Demotion is the direction that actually matters for security, and it is",
+            "// the reason assignRole revokes refresh tokens: the PROFESSOR access token",
+            "// this user is still holding stays valid until it expires, but it can no",
+            "// longer be renewed."
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 Refresh tokens (rotation, reuse detection, logout)",
+      "description": "The refresh token never travels in an Authorization header and never reaches BearerTokenFilter. It is an opaque 256-bit random string in a JSON body, stored only as a SHA-256 hash, and every /refresh call rotates it.\n\nThis folder uses its own registered user so the admin {{token}} keeps working throughout. Cleanup removes it.",
+      "item": [
+        {
+          "name": "POST /api/auth/register - the refresh-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('refreshUserId', body.id);",
+            "pm.collectionVariables.set('refreshUserEmail', body.email);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Refresh Test User\",\n  \"email\": \"refresh-{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - login now returns a TOKEN PAIR",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('access token present', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+            "pm.test('refresh token present', () => pm.expect(body.refreshToken).to.be.a('string').and.not.empty);",
+            "pm.test('expiresIn is 15 minutes in SECONDS', () => pm.expect(body.expiresIn).to.eql(900));",
+            "pm.test('refreshExpiresIn is 7 days in SECONDS', () => pm.expect(body.refreshExpiresIn).to.eql(604800));",
+            "pm.test('the refresh token is NOT a JWT', () => {",
+            "    // Opaque by design: BearerTokenFilter could never mistake it for an",
+            "    // access token, because it has no dots and no signature to verify.",
+            "    pm.expect(body.refreshToken).to.not.contain('.');",
+            "});",
+            "pm.test('refresh token is 256 bits, base64url, unpadded', () => {",
+            "    pm.expect(body.refreshToken).to.have.lengthOf(43);",
+            "    pm.expect(body.refreshToken).to.match(/^[A-Za-z0-9_-]+$/);",
+            "});",
+            "pm.collectionVariables.set('rtOld', body.refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{refreshUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - rotate, with NO Authorization header",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK without any bearer token', () => pm.response.to.have.status(200));",
+            "// This is the whole point: /refresh is called precisely when the access",
+            "// token has already expired, so requiring one would be circular.",
+            "const body = pm.response.json();",
+            "pm.test('a NEW refresh token came back', () => {",
+            "    pm.expect(body.refreshToken).to.not.eql(pm.collectionVariables.get('rtOld'));",
+            "});",
+            "pm.test('an access token came back', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+            "// Deliberately NOT asserting that the access token differs from the login",
+            "// one: iat/exp are epoch SECONDS, so two JWTs minted for the same user in",
+            "// the same second are byte identical. That is correct, not a bug.",
+            "pm.collectionVariables.set('rtNew', body.refreshToken);",
+            "pm.collectionVariables.set('refreshedAccess', body.token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtOld}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "GET /api/users/{id} - the refreshed access token really works",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('self access via @authorizationService.isAccessingSelf', () => {",
+            "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('refreshUserId')));",
+            "});"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{refreshedAccess}}", "type": "string" }] },
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{refreshUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{refreshUserId}}"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - REPLAY the rotated token -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "pm.test('the reason is NOT disclosed', () => {",
+            "    // Same generic detail for unknown / expired / revoked / reused.",
+            "    // Telling the caller which check failed would be an oracle.",
+            "    pm.expect(pm.response.json().detail).to.eql('Refresh token is invalid or expired');",
+            "});",
+            "// Rotation makes a refresh token single use, so this is either a thief",
+            "// replaying a stolen token or a client replaying its own. The server",
+            "// cannot tell them apart, so it kills the entire family - proven next."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtOld}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - reuse killed the WHOLE family -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "",
+            "// {{rtNew}} was perfectly valid a moment ago. The replay above revoked",
+            "// every live token this user had, including this one.",
+            "//",
+            "// Regression test for the rollback trap: InvalidRefreshTokenException is a",
+            "// RuntimeException, so Spring's default rollback rule would undo the",
+            "// revoking UPDATE issued just before the throw. Without",
+            "// @Transactional(noRollbackFor = InvalidRefreshTokenException.class) on",
+            "// rotate(), the replay above would still answer 401 while revoking",
+            "// NOTHING, and this request would answer 200."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtNew}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - a fresh pair after the lockout",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK - the password still works', () => pm.response.to.have.status(200));",
+            "// Revocation kills sessions, not accounts.",
+            "pm.collectionVariables.set('rtLogout', pm.response.json().refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{refreshUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/logout -> 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+            "pm.test('no body', () => pm.expect(pm.response.text()).to.be.empty);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtLogout}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - after logout -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "// This is what makes logout mean anything. The access token issued",
+            "// alongside it is still valid until it expires - at most 15 minutes -",
+            "// because a JWT cannot be recalled. The refresh token can, and is."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtLogout}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/logout - unknown token is still 204 (idempotent)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+            "// A 404 here would tell an attacker which token strings exist."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"this-token-was-never-issued-by-anyone\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - garbage token -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "pm.test('same generic detail as every other rejection', () => {",
+            "    pm.expect(pm.response.json().detail).to.eql('Refresh token is invalid or expired');",
+            "});"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"not-a-real-token\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - blank token -> 400 (@NotBlank)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('validation error, not an auth error', () => {",
+            "    // 400 not 401: @Valid rejects it before the service is ever called,",
+            "    // so nothing was looked up and nothing was leaked.",
+            "    pm.expect(pm.response.json()).to.have.property('errors');",
+            "});"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"   \"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - missing field -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - pair for the role-change check",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('rtRoleChange', pm.response.json().refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{refreshUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "PATCH /api/users/{id}/role - admin changes their role",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"PROFESSOR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/{{refreshUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{refreshUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - the role change revoked it -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "// assignRole calls revokeAllFor. Without it a demoted admin would keep",
+            "// trading their refresh token for fresh ROLE_ADMIN access tokens for a",
+            "// week, because BearerTokenFilter reads roles from the claim and never",
+            "// consults the database."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtRoleChange}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - pair for the soft-delete check",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('rtSoftDelete', pm.response.json().refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{refreshUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "DELETE /api/users/softDeleted/{id} - admin soft-deletes them",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('flagged', () => pm.expect(pm.response.json().isDeleted).to.be.true);"
+          ] } }],
+          "request": { "method": "DELETE", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{refreshUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{refreshUserId}}"] } }
+        },
+        {
+          "name": "POST /api/auth/refresh - soft-deleted user -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "// softDelete does not revoke tokens itself, so this is rotate() catching",
+            "// user.isDeleted() at refresh time and revoking the family then. The check",
+            "// is lazy, but it closes the door on the first attempt."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{rtSoftDelete}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "PATCH /api/users/softDeleted/{id} - restore them (so cleanup can run)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('restored', () => pm.expect(pm.response.json().isDeleted).to.be.false);"
+          ] } }],
+          "request": { "method": "PATCH", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/{{refreshUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "{{refreshUserId}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "9 Error cases",
       "item": [
         {
           "name": "GET missing department -> 404",
@@ -848,7 +1596,7 @@
             "url": { "raw": "{{baseUrl}}/api/departments/999999", "host": ["{{baseUrl}}"], "path": ["api", "departments", "999999"] } }
         },
         {
-          "name": "POST student with invalid email -> 400",
+          "name": "POST user with invalid email -> 400",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
             "pm.test('both field errors listed', () => {",
@@ -861,7 +1609,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"name\": \"\",\n  \"email\": \"not-an-email\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students", "host": ["{{baseUrl}}"], "path": ["api", "students"] }
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
           }
         },
         {
@@ -874,7 +1622,7 @@
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"bio\": \"Time traveller.\",\n  \"dateOfBirth\": \"2999-01-01\"\n}" },
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "profile"] }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "profile"] }
           }
         },
         {
@@ -981,12 +1729,12 @@
           }
         },
         {
-          "name": "POST enroll missing student -> 404",
+          "name": "POST enroll missing user -> 404",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/999999/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "999999", "courses", "{{courseId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/999999/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "999999", "courses", "{{courseId}}"] } }
         },
         {
           "name": "POST enroll in missing course -> 404",
@@ -994,7 +1742,7 @@
             "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
           ] } }],
           "request": { "method": "POST", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}/courses/999999", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}", "courses", "999999"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/courses/999999", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "courses", "999999"] } }
         },
         {
           "name": "DELETE soft delete on a missing department -> 404",
@@ -1006,22 +1754,22 @@
             "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/999999", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "999999"] } }
         },
         {
-          "name": "GET /api/students/softDeleted/maybe -> 400 (path variable is a boolean)",
+          "name": "GET /api/users/softDeleted/maybe -> 400 (path variable is a boolean)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
             "// Spring cannot bind 'maybe' to boolean, so it never reaches the service.",
             "// Only true/false (and 1/0, on/off, yes/no) are accepted."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/softDeleted/maybe", "host": ["{{baseUrl}}"], "path": ["api", "students", "softDeleted", "maybe"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/softDeleted/maybe", "host": ["{{baseUrl}}"], "path": ["api", "users", "softDeleted", "maybe"] } }
         }
       ]
     },
     {
-      "name": "8 Cleanup",
+      "name": "10 Cleanup",
       "item": [
         {
-          "name": "DELETE department (cascades to both courses, student still enrolled)",
+          "name": "DELETE department (cascades to both courses, user still enrolled)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));",
             "// Exercises the unenrollment loop in DepartmentService.delete and",
@@ -1031,13 +1779,35 @@
             "url": { "raw": "{{baseUrl}}/api/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "{{departmentId}}"] } }
         },
         {
-          "name": "DELETE student",
+          "name": "DELETE user",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('204 No Content', () => pm.response.to.have.status(204));",
-            "// SSMS afterwards: student_profiles should be empty again."
+            "// SSMS afterwards: user_profiles should be empty again."
           ] } }],
           "request": { "method": "DELETE", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/students/{{studentId}}", "host": ["{{baseUrl}}"], "path": ["api", "students", "{{studentId}}"] } }
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] } }
+        },
+        {
+          "name": "DELETE the role-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+            "// This user LOGGED IN, so they own rows in refresh_tokens. A hard delete",
+            "// only succeeds if UserServiceImpl.delete clears those first - the FK on",
+            "// refresh_tokens.user_id has no cascade and revoking only sets revoked_at,",
+            "// it does not remove the row."
+          ] } }],
+          "request": { "method": "DELETE", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}"] } }
+        },
+        {
+          "name": "DELETE the refresh-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+            "// Same as above, and this one accumulated five separate refresh_tokens",
+            "// rows across the rotation folder."
+          ] } }],
+          "request": { "method": "DELETE", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{refreshUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{refreshUserId}}"] } }
         }
       ]
     }

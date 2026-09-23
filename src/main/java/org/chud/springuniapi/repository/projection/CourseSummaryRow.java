@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-//ownerId is crucial. It can be both for student and department
+//ownerId is crucial. It can be both for user and department
 //Without it one query could only ever serve one owner and a list endpoint would be back to N+1.
 public record CourseSummaryRow(Long ownerId, Long courseId, String courseName) {
 
