@@ -3,10 +3,7 @@ package org.chud.springuniapi.service;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
-import org.chud.springuniapi.dto.response.CourseSummaryResponse;
-import org.chud.springuniapi.dto.response.UserDisplayResponse;
-import org.chud.springuniapi.dto.response.UserResponse;
-import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.dto.response.*;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Role;
 import org.chud.springuniapi.entity.User;
@@ -47,6 +44,14 @@ public class UserServiceImpl implements IUserService, IUserServiceInternal {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public MeResponse findMe(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        return userMapper.toMeResponse(user);
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.chud.springuniapi.service.serviceInterface;
 
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
+import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
@@ -30,4 +31,6 @@ public interface IUserService {
     UserSoftDeleteResponse softDelete(Long id);
 
     UserSoftDeleteResponse restoreSoftDelete(Long id);
+
+    MeResponse findMe(Long id);
 }

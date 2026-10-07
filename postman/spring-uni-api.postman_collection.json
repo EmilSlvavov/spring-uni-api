@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "spring-uni-api",
-    "description": "University Management API - full coverage.\n\nCovers all 34 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (user profile; the user_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/users/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its users, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\n- roles: a read-only catalogue over the RoleName enum, plus PATCH /api/users/{id}/role\n- refresh tokens: opaque, hashed at rest, rotated on every use, with reuse detection\n\nRun top to bottom; folders 5, 6, 7 and 8 restore every flag they set, and Cleanup removes everything it created.",
+    "description": "University Management API - full coverage.\n\nCovers all 35 endpoints and every JPA feature that is reachable over HTTP:\n- SINGLE_TABLE inheritance (courses: online / onsite)\n- @ElementCollection (department contacts, PUT = full replace)\n- @SecondaryTable (user profile; the user_profiles row only appears on first write)\n- closed projection (GET /api/courses/summary) vs open projection (GET /api/users/display)\n- soft delete: the isDeleted flag on BaseEntity and its /softDeleted endpoints\n- relationships: a department lists its courses, a course lists its users, and the optional ?deleted parameter filters that NESTED list (omit it = mixed)\n- MapStruct, @Version, sequences, auditing (verify these in SSMS)\n\n- roles: a read-only catalogue over the RoleName enum, plus PATCH /api/users/{id}/role\n- refresh tokens: opaque, hashed at rest, rotated on every use, with reuse detection\n\nRun top to bottom; folders 5, 6, 7 and 8 restore every flag they set, and Cleanup removes everything it created.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,7 +16,7 @@
     { "key": "throwawayUserId", "value": "" },
     { "key": "token", "value": "" },
     { "key": "adminEmail", "value": "admin@email.test" },
-    { "key": "seedPassword", "value": "SET_ME_TO_YOUR_SEED_PASSWORD" },
+    { "key": "seedPassword", "value": "Password123!" },
     { "key": "newUserPassword", "value": "Str0ngPassw0rd" },
     { "key": "registeredEmail", "value": "" },
     { "key": "escalationEmail", "value": "" },
@@ -141,7 +141,13 @@
             "    pm.expect(JSON.parse(json).roles).to.include('ROLE_ADMIN');",
             "});",
             "pm.collectionVariables.set('token', body.token);",
-            "pm.collectionVariables.set('adminRefreshToken', body.refreshToken);"
+            "pm.collectionVariables.set('adminRefreshToken', body.refreshToken);",
+            "// Environment variables beat collection variables, so a stale 'token'",
+            "// in the active environment would hide the one set above.",
+            "if (pm.environment.has('token')) {",
+            "    pm.environment.unset('token');",
+            "    console.warn('Removed a stale environment variable \"token\" that was shadowing the collection one');",
+            "}"
           ] } }],
           "request": {
             "auth": { "type": "noauth" },
@@ -495,6 +501,36 @@
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": { "raw": "{{baseUrl}}/api/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}"] } }
+        },
+        {
+          "name": "GET /api/users/me - the caller, read from the DATABASE",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('it is the logged-in admin', () => pm.expect(body.email).to.eql(pm.collectionVariables.get('adminEmail')));",
+            "pm.test('role comes back as the bare enum name', () => pm.expect(body.role).to.eql('ADMIN'));",
+            "pm.test('exactly id, name, email, role', () => pm.expect(Object.keys(body)).to.have.members(['id', 'name', 'email', 'role']));",
+            "// No id in the URL: the user is whoever the bearer token belongs to."
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          }
+        },
+        {
+          "name": "GET /api/users/me - anonymous -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "// /me has no meaning without a token. It sits under /api/users, not /api/auth/**,",
+            "// because /api/auth/** is permitAll and would reach the controller with no principal."
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          }
         },
         {
           "name": "PUT /api/users/{id}/profile - PUT replaces (omitted field becomes null)",
@@ -1087,6 +1123,21 @@
           }
         },
         {
+          "name": "GET /api/users/me - as STUDENT",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('it is the role-test user', () => pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('roleUserId'))));",
+            "pm.test('role STUDENT', () => pm.expect(body.role).to.eql('STUDENT'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{roleUserToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          }
+        },
+        {
           "name": "GET /api/roles - as STUDENT -> 403",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
@@ -1128,6 +1179,23 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"role\": \"PROFESSOR\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/users/{{roleUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{roleUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "GET /api/users/me - OLD token, NEW role (why /me beats decoding the JWT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('role is already PROFESSOR', () => pm.expect(pm.response.json().role).to.eql('PROFESSOR'));",
+            "// {{roleUserToken}} was issued while this user was a STUDENT, and its 'roles'",
+            "// claim still says ROLE_STUDENT. /me reads the database, so it reports the",
+            "// promotion immediately. A frontend that decoded the token would be stale",
+            "// until the token expired."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{roleUserToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
           }
         },
         {
