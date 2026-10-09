@@ -27,6 +27,9 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     @EntityGraph(attributePaths = "contacts")
     Optional<Department> findWithContactsById(Long id);
 
+    @EntityGraph(attributePaths = "contacts")
+    Optional<Department> findWithContactsByIdAndDeleted(Long id, boolean deleted);
+
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Department> findWithLockById(Long id);
 

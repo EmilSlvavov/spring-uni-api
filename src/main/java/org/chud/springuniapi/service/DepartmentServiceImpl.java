@@ -42,7 +42,7 @@ public class DepartmentServiceImpl implements IDepartmentService, IDepartmentSer
 
     @Override
     public List<DepartmentResponse> findAll(Boolean deleted) {
-        List<Department> departments = departmentRepository.findAll();
+        List<Department> departments = departmentRepository.findDepartmentByDeleted(false);
         Map<Long, List<CourseSummaryResponse>> coursesByDepartment = listCoursesByDepartmentId(departments, deleted);
 
         return departments.stream()
@@ -53,19 +53,21 @@ public class DepartmentServiceImpl implements IDepartmentService, IDepartmentSer
 
     @Override
     public DepartmentResponse findById(Long id, Boolean deleted) {
-        Department department = departmentRepository.findWithContactsById(id)
+        Department department = departmentRepository.findWithContactsByIdAndDeleted(id, false)
             .orElseThrow(() -> new ResourceNotFoundException("Department", id));
 
         return departmentMapper.toResponse(department, coursesOfForSingleDepartment(department, deleted));
     }
 
     @Override
-    public List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted) {
-        return departmentRepository
-            .findDepartmentByDeleted(isDeleted)
-            .stream()
-            .map(departmentMapper::toResponseWithSoftDelete)
-            .toList();
+    public List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted) {
+        List<Department> departments = deleted == null
+                ? departmentRepository.findAll()
+                : departmentRepository.findDepartmentByDeleted(deleted);
+
+        return departments.stream()
+                .map(departmentMapper::toResponseWithSoftDelete)
+                .toList();
     }
 
     //changed so it checks if it won the race condition and throws if not

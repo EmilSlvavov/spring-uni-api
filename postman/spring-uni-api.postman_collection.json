@@ -653,7 +653,7 @@
       "name": "5 Soft delete (isDeleted flag)",
       "item": [
         {
-          "name": "GET /api/departments/softDeleted/false - department starts active",
+          "name": "GET /api/departments/softDeleted?deleted=false - department starts active",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const rows = pm.response.json();",
@@ -667,7 +667,7 @@
             "// query - without it this is an extra select per department."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "false"] } }
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=false", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }] } }
         },
         {
           "name": "DELETE /api/departments/softDeleted/{id} - flag it (a DELETE that deletes nothing)",
@@ -683,7 +683,7 @@
             "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "{{departmentId}}"] } }
         },
         {
-          "name": "GET /api/departments/softDeleted/true - now listed as soft-deleted",
+          "name": "GET /api/departments/softDeleted?deleted=true - now listed as soft-deleted",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const rows = pm.response.json();",
@@ -694,19 +694,49 @@
             "pm.test('every row really is isDeleted=true', () => rows.forEach(d => pm.expect(d.isDeleted).to.be.true));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted", "true"] } }
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] } }
         },
         {
-          "name": "GET /api/departments/{id} - the flag hides nothing",
+          "name": "GET /api/departments/{id} - a soft-deleted department is hidden -> 404",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
-            "pm.test('200 OK - a soft-deleted department still reads normally', () => pm.response.to.have.status(200));",
-            "pm.test('the ordinary response does not even expose the flag', () => pm.expect(pm.response.json()).to.not.have.property('isDeleted'));",
-            "// GET /api/departments, /api/courses, the projections and the hard DELETE",
-            "// all ignore `deleted`. @SQLRestriction(\"deleted = 0\") on the entities is",
-            "// what would actually filter them out everywhere."
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+            "pm.test('same ProblemDetail shape as any missing department', () => pm.expect(pm.response.json().status).to.eql(404));",
+            "// The public read paths only see active departments now; admins reach",
+            "// deleted ones through /softDeleted. Courses still ignore the flag here."
           ] } }],
           "request": { "method": "GET", "header": [],
             "url": { "raw": "{{baseUrl}}/api/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "departments", "{{departmentId}}"] } }
+        },
+        {
+          "name": "GET /api/departments - the public list leaves it out",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().map(d => d.id);",
+            "pm.test('our soft-deleted department is not in the list', () => {",
+            "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('departmentId')));",
+            "});",
+            "// Even this admin token gets only active departments from the public list."
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"] } }
+        },
+        {
+          "name": "GET /api/departments/softDeleted - no filter returns deleted AND active",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const rows = pm.response.json();",
+            "pm.test('our soft-deleted department is included', () => {",
+            "    const ours = rows.find(d => d.id === Number(pm.collectionVariables.get('departmentId')));",
+            "    pm.expect(ours, 'department present').to.exist;",
+            "    pm.expect(ours.isDeleted).to.be.true;",
+            "});",
+            "pm.test('active departments come back in the same response', () => {",
+            "    pm.expect(rows.some(d => d.isDeleted === false)).to.be.true;",
+            "});",
+            "// No ?deleted= means no filter: one request, one query, both kinds."
+          ] } }],
+          "request": { "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"] } }
         },
         {
           "name": "PATCH /api/departments/softDeleted/{id} - restore it",
