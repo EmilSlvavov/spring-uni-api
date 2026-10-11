@@ -10,6 +10,7 @@ import org.chud.springuniapi.entity.ContactInfo;
 import org.chud.springuniapi.entity.Course;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.exception.DuplicateResourceException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.DepartmentMapper;
@@ -171,14 +172,21 @@ public class DepartmentServiceImpl implements IDepartmentService, IDepartmentSer
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public Department loadForCourseCreation(Long id) {
-        return departmentRepository.findWithLockById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+        Department department = departmentRepository.findWithLockById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department", id));
+
+        if (department.isDeleted()) {
+            throw new BusinessRuleViolationException(
+                    "cannot create a course in a deleted department");
+        }
+
+        return department;
     }
 
 
     @Override
     public void requireExists(Long id) {
-        if (!departmentRepository.existsById(id)) {
+        if (!departmentRepository.existsByIdAndDeletedFalse(id)) {
             throw new ResourceNotFoundException("Department", id);
         }
     }

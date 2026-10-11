@@ -46,4 +46,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
             order by d.id, c.id
             """)
     List<CourseSummaryRow> findCourseSummariesByDepartmentIds(Collection<Long> departmentIds, Boolean deleted);
+
+    boolean existsByIdAndDeletedFalse(Long id);
 }

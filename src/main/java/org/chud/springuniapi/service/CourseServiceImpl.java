@@ -39,7 +39,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
 
     @Override
     public List<CourseResponse> findAll(Boolean deleted) {
-        List<Course> courses = courseRepository.findAllWithDepartment();
+        List<Course> courses = courseRepository.findAllActiveWithDepartment();
         Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
 
         return courses.stream()
@@ -49,7 +49,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
 
     @Override
     public CourseResponse findById(Long id, Boolean deleted) {
-        Course course = courseRepository.findByIdWithDepartment(id)
+        Course course = courseRepository.findActiveByIdWithDepartment(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
         return courseMapper.toResponse(course, usersOfForSingleCourse(course, deleted));
@@ -138,7 +138,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     @Override
     public List<CourseListItemResponse> findSummariesByDepartment(Long departmentId) {
         List<CourseSummaryView> views =
-            courseRepository.findByDepartmentId(departmentId, CourseSummaryView.class);
+                courseRepository.findByDepartmentIdAndDeletedFalseAndDepartmentDeletedFalse(departmentId, CourseSummaryView.class);
 
         return views.stream().map(view -> new CourseListItemResponse(
                         view.getId(),
@@ -149,7 +149,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
 
     @Override
     public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
-        List<Course> courses = courseRepository.findByDepartmentId(departmentId);
+        List<Course> courses = courseRepository.findByDepartmentIdAndDeletedFalseAndDepartmentDeletedFalse(departmentId);
 
         Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
 
