@@ -29,13 +29,18 @@ public abstract class Course extends BaseEntity {
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lecturer_id")
+    private User lecturer;
+
     @ManyToMany(mappedBy = "courses")
     private Set<User> users = new HashSet<>();
 
 
-    public Course(String name, Department department) {
+    public Course(String name, Department department, User lecturer) {
         this.name = name;
         this.department = department;
+        this.lecturer = lecturer;
     }
 
 }

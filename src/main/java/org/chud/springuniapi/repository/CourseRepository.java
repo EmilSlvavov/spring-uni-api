@@ -28,7 +28,17 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Course> findWithLockById(Long id);
 
-    List<Course> findCourseByDeleted(boolean isDeleted);
+    boolean existsByIdAndLecturerId(Long id, Long lecturerId);
+
+    @Query("""
+            select c from Course c
+            join fetch c.department d
+            left join fetch c.lecturer l
+            where (:deleted is null or c.deleted = :deleted)
+              and (:lecturerId is null or l.id = :lecturerId)
+            order by c.id
+            """)
+    List<Course> findForSoftDeleteList(Boolean deleted, Long lecturerId);
 
     //Soft delete filter for the users of a course. enabled = null means "do not filter"
 

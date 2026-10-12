@@ -6,4 +6,6 @@ public interface AuthorizationService {
 
     boolean isAccessingSelf(Long id, Authentication authentication);
 
+    boolean isCourseOwner(Long courseId, Authentication authentication);
+
 }

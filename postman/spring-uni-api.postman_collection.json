@@ -33,7 +33,17 @@
     { "key": "rtNew", "value": "" },
     { "key": "rtLogout", "value": "" },
     { "key": "rtRoleChange", "value": "" },
-    { "key": "rtSoftDelete", "value": "" }
+    { "key": "rtSoftDelete", "value": "" },
+    { "key": "ownerProfId", "value": "" },
+    { "key": "ownerProfEmail", "value": "" },
+    { "key": "ownerProfToken", "value": "" },
+    { "key": "otherProfId", "value": "" },
+    { "key": "otherProfEmail", "value": "" },
+    { "key": "otherProfToken", "value": "" },
+    { "key": "ownStudentId", "value": "" },
+    { "key": "ownStudentEmail", "value": "" },
+    { "key": "ownStudentToken", "value": "" },
+    { "key": "ownedCourseId", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -291,6 +301,10 @@
             "pm.test('department flattened by MapStruct', () => {",
             "    pm.expect(body).to.have.property('departmentId');",
             "    pm.expect(body).to.have.property('departmentName');",
+            "});",
+            "pm.test('created by an ADMIN -> no lecturer (keys absent via NON_NULL)', () => {",
+            "    pm.expect(body).to.not.have.property('lecturerId');",
+            "    pm.expect(body).to.not.have.property('lecturerName');",
             "});",
             "pm.collectionVariables.set('courseId', body.id);"
           ] } }],
@@ -766,18 +780,21 @@
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{courseId}}"] } }
         },
         {
-          "name": "GET /api/courses/softDeleted/true - only the flagged course",
+          "name": "GET /api/courses/softDeleted?deleted=true - only the flagged course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const ids = pm.response.json().map(c => c.id);",
             "pm.test('the online course is listed', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('the onsite course is not', () => pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('onsiteCourseId'))));"
           ] } }],
-          "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "true"] } }
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+          }
         },
         {
-          "name": "GET /api/courses/softDeleted/false - the onsite course is untouched",
+          "name": "GET /api/courses/softDeleted?deleted=false - the onsite course is untouched",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "const rows = pm.response.json();",
@@ -786,8 +803,25 @@
             "pm.test('the flagged online course is gone from this list', () => pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('both subtypes are mapped by one endpoint', () => rows.forEach(c => pm.expect(['ONLINE', 'ONSITE']).to.include(c.type)));"
           ] } }],
-          "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/false", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "false"] } }
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=false", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses/softDeleted - no filter returns deleted AND active (ADMIN sees all)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK (null Boolean no longer unboxed into a 500)', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().map(c => c.id);",
+            "pm.test('the flagged online course is listed', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId'))));",
+            "pm.test('the active onsite course is listed too', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('onsiteCourseId'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"] }
+          }
         },
         {
           "name": "PATCH /api/courses/softDeleted/{id} - restore the ONLINE course",
@@ -1864,7 +1898,349 @@
       ]
     },
     {
-      "name": "10 Cleanup",
+      "name": "10 Course ownership (lecturer + @PreAuthorize isCourseOwner)",
+      "item": [
+        {
+          "name": "POST /api/users - create Owner Professor (PROFESSOR)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('ownerProfId', body.id);",
+            "pm.collectionVariables.set('ownerProfEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Owner Professor\",\n  \"email\": \"ownerProfId-{{$randomInt}}{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"PROFESSOR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the owner professor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('ownerProfToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{ownerProfEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/users - create Other Professor (PROFESSOR)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('otherProfId', body.id);",
+            "pm.collectionVariables.set('otherProfEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Other Professor\",\n  \"email\": \"otherProfId-{{$randomInt}}{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"PROFESSOR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the other professor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('otherProfToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{otherProfEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/users - create Ownership Student (STUDENT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('ownStudentId', body.id);",
+            "pm.collectionVariables.set('ownStudentEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ownership Student\",\n  \"email\": \"ownStudentId-{{$randomInt}}{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the student",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('ownStudentToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{ownStudentEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/courses/online - as PROFESSOR, lecturer comes from the token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('lecturerId is the caller, not the lecturerId sent in the body', () => pm.expect(body.lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId'))));",
+            "pm.test('lecturerName is mapped', () => pm.expect(body.lecturerName).to.eql('Owner Professor'));",
+            "pm.collectionVariables.set('ownedCourseId', body.id);"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Owned Course\",\n  \"departmentId\": {{departmentId}},\n  \"meetingUrl\": \"https://meet.example.com/owned\",\n  \"lecturerId\": 1\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/online", "host": ["{{baseUrl}}"], "path": ["api", "courses", "online"] }
+          }
+        },
+        {
+          "name": "GET /api/courses/{id} - the lecturer is persisted, not just echoed",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('lecturerId read back from the DB', () => pm.expect(pm.response.json().lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId'))));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - OWNER renames -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('renamed', () => pm.expect(pm.response.json().name).to.eql('Owned Course (renamed by owner)'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Owned Course (renamed by owner)\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - OTHER professor -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{otherProfToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Hijacked\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - STUDENT -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownStudentToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Hijacked\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - anonymous -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Hijacked\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - ADMIN renames any course -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('admin edit keeps the original lecturer', () => pm.expect(pm.response.json().lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId'))));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Owned Course\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/{id} - professor on an ADMIN-created course (no lecturer) -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Hijacked\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/{{courseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{courseId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/courses/999999 - professor on a missing course -> 403 (not yours and missing look the same)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ghost\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/999999", "host": ["{{baseUrl}}"], "path": ["api", "courses", "999999"] }
+          }
+        },
+        {
+          "name": "DELETE /api/courses/softDeleted/{id} - OTHER professor -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{otherProfToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "DELETE /api/courses/softDeleted/{id} - OWNER -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('flagged', () => pm.expect(body.isDeleted).to.eql(true));",
+            "pm.test('soft-delete response carries the lecturer', () => pm.expect(body.lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId'))));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "GET /api/courses/softDeleted?deleted=true - OWNER sees only their own courses",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const rows = pm.response.json();",
+            "pm.test('their deleted course is listed', () => pm.expect(rows.map(c => c.id)).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));",
+            "pm.test('every row is theirs', () => rows.forEach(c => pm.expect(c.lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId')))));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses/softDeleted - OTHER professor does not see it",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('owned course is not listed', () => pm.expect(pm.response.json().map(c => c.id)).to.not.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{otherProfToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"] }
+          }
+        },
+        {
+          "name": "GET /api/courses/softDeleted - STUDENT -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownStudentToken}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"] }
+          }
+        },
+        {
+          "name": "GET /api/courses/softDeleted?deleted=true - ADMIN sees every lecturer's courses",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('the professor course is listed', () => pm.expect(pm.response.json().map(c => c.id)).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+          }
+        },
+        {
+          "name": "PATCH /api/courses/softDeleted/{id} - OTHER professor -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{otherProfToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /api/courses/softDeleted/{id} - OWNER restores their deleted course -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('restored', () => pm.expect(pm.response.json().isDeleted).to.eql(false));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "DELETE /api/courses/softDeleted/{id} - ADMIN -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('flagged', () => pm.expect(pm.response.json().isDeleted).to.eql(true));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /api/courses/softDeleted/{id} - ADMIN restores -> 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('restored', () => pm.expect(pm.response.json().isDeleted).to.eql(false));"
+          ] } }],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Cleanup",
       "item": [
         {
           "name": "DELETE department (cascades to both courses, user still enrolled)",
@@ -1906,6 +2282,39 @@
           ] } }],
           "request": { "method": "DELETE", "header": [],
             "url": { "raw": "{{baseUrl}}/api/users/{{refreshUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{refreshUserId}}"] } }
+        },
+        {
+          "name": "DELETE the owner professor (the department cascade already removed their course)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{ownerProfId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{ownerProfId}}"] }
+          }
+        },
+        {
+          "name": "DELETE the other professor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{otherProfId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{otherProfId}}"] }
+          }
+        },
+        {
+          "name": "DELETE the ownership student",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{ownStudentId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{ownStudentId}}"] }
+          }
         }
       ]
     }

@@ -12,7 +12,7 @@ public interface ICourseCatalogFacade {
 
     List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted);
 
-    CourseResponse createOnline(CreateOnlineCourseRequest request);
+    CourseResponse createOnline(CreateOnlineCourseRequest request, Long creatorId);
 
-    CourseResponse createOnsite(CreateOnsiteCourseRequest request);
+    CourseResponse createOnsite(CreateOnsiteCourseRequest request, Long creatorId);
 }

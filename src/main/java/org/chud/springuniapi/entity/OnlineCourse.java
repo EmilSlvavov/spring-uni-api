@@ -15,8 +15,8 @@ public class OnlineCourse extends Course {
     @Column(length = 300)
     private String meetingUrl;
 
-    public OnlineCourse(String name, Department department, String meetingUrl) {
-        super(name, department);
+    public OnlineCourse(String name, Department department, User lecturer, String meetingUrl) {
+        super(name, department, lecturer);
         this.meetingUrl = meetingUrl;
     }
 }

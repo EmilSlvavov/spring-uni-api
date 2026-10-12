@@ -56,12 +56,12 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     }
 
     @Override
-    public List<CourseSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted){
+    public List<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId) {
         return courseRepository
-            .findCourseByDeleted(isDeleted)
-            .stream()
-            .map(courseMapper::toResponseWithSoftDelete)
-            .toList();
+                .findForSoftDeleteList(deleted, lecturerId)
+                .stream()
+                .map(courseMapper::toResponseWithSoftDelete)
+                .toList();
     }
 
     @Override
@@ -91,7 +91,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     @Transactional
     public CourseSoftDeleteResponse softDelete(Long id) {
         Course course = courseRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Course", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
         course.setDeleted(true);
         return courseMapper.toResponseWithSoftDelete(course);
@@ -117,6 +117,12 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
     }
 
+    @Override
+    public boolean isLecturedBy(Long courseId, Long userId) {
+        return courseRepository.existsByIdAndLecturerId(courseId, userId);
+    }
+
+
     //The pessimistic read lock and the question of what makes a course enrollable both
     //live here, in the aggregate that owns the answer, instead of at the call site.
     @Override
@@ -125,9 +131,9 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
         Course course = courseRepository.findWithLockById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", id));
 
-        if (course.isDeleted()) {
+        if (course.isDeleted() || course.getDepartment().isDeleted()) {
             throw new BusinessRuleViolationException(
-                "cannot enroll in a deleted course");
+                    "cannot enroll in a deleted course");
         }
 
         return course;
@@ -161,17 +167,17 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     //The Department arrives resolved and locked from the facade.
     @Override
     @Transactional
-    public CourseResponse createOnline(CreateOnlineCourseRequest request, Department department) {
+    public CourseResponse createOnline(CreateOnlineCourseRequest request, Department department, User lecturer) {
         //a fresh course has no users yet, so there is nothing to query for
         return courseMapper.toResponse(courseRepository.save(
-                new OnlineCourse(request.name(), department, request.meetingUrl())), List.of());
+                new OnlineCourse(request.name(), department, lecturer, request.meetingUrl())), List.of());
     }
 
     @Override
     @Transactional
-    public CourseResponse createOnsite(CreateOnsiteCourseRequest request, Department department) {
+    public CourseResponse createOnsite(CreateOnsiteCourseRequest request, Department department, User lecturer) {
         return courseMapper.toResponse(courseRepository.save(
-                new OnsiteCourse(request.name(), department, request.roomNumber())), List.of());
+                new OnsiteCourse(request.name(), department, lecturer, request.roomNumber())), List.of());
     }
 
     //one query for the whole list instead of one per course
@@ -190,7 +196,7 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     }
 
     private List<UserSummaryResponse> usersOfForMultipleCourses(Map<Long, List<UserSummaryResponse>> usersByCourse,
-        Course course) {
+                                                                Course course) {
 
         return usersByCourse.getOrDefault(course.getId(), List.of());
     }
