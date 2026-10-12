@@ -5,9 +5,11 @@ import org.chud.springuniapi.dto.request.AssignRoleRequest;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
 import org.chud.springuniapi.dto.request.UpdateUserRequest;
+import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.security.MyUserDetails;
 import org.chud.springuniapi.service.facade.IEnrollmentFacade;
 import org.chud.springuniapi.service.facade.IUserAccountFacade;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
@@ -15,6 +17,7 @@ import org.chud.springuniapi.validation.NotAdmin;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,6 +39,11 @@ public class UserController {
         this.userService = userService;
         this.userAccountFacade = userAccountFacade;
         this.enrollmentFacade = enrollmentFacade;
+    }
+
+    @GetMapping("/me")
+    public MeResponse getMe(@AuthenticationPrincipal MyUserDetails principal) {
+        return userService.findMe(principal.id());
     }
 
     @GetMapping

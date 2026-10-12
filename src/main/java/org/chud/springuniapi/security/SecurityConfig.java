@@ -69,7 +69,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/users/softDeleted/**").hasRole("ADMIN")
 
                         // courses endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/courses/softDeleted/**").hasAnyRole("PROFESSOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/courses/**")
                         .hasAnyRole("PROFESSOR", "ADMIN")

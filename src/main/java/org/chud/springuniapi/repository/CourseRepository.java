@@ -15,30 +15,33 @@ import java.util.Optional;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-    @EntityGraph(attributePaths = "department")
-    List<Course> findByDepartmentId(Long departmentId);
-
     @Query("select c from Course c join fetch c.department where c.id = :id")
     Optional<Course> findByIdWithDepartment(Long id);
 
-    @Query("select c from Course c join fetch c.department")
-    List<Course> findAllWithDepartment();
 
-    //Can call it both with findByDepartmentId(1L, CourseSummaryView.class);
-    //and also with findByDepartmentId(1L, Course.class); One returns the more
-    //narrow proxy version with only department name(not managed) and the other
-    // one gives you enteties which are being managed so
-    //This is a dynamic projection since I can use both versions. Closed is if I
-    //made the method take only CourseSumaryView like:
-    // List<CourseSummaryView> find(by what I choose here)
-    <T extends DynamicCourseProjectionMarker> List<T> findByDepartmentId(Long departmentId, Class<T> type);
+    <T extends DynamicCourseProjectionMarker> List<T> findByDepartmentIdAndDeletedFalseAndDepartmentDeletedFalse(
+            Long departmentId, Class<T> type);
+
+    @EntityGraph(attributePaths = "department")
+    List<Course> findByDepartmentIdAndDeletedFalseAndDepartmentDeletedFalse(Long departmentId);
 
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Course> findWithLockById(Long id);
 
-    List<Course> findCourseByDeleted(boolean isDeleted);
+    boolean existsByIdAndLecturerId(Long id, Long lecturerId);
+
+    @Query("""
+            select c from Course c
+            join fetch c.department d
+            left join fetch c.lecturer l
+            where (:deleted is null or c.deleted = :deleted)
+              and (:lecturerId is null or l.id = :lecturerId)
+            order by c.id
+            """)
+    List<Course> findForSoftDeleteList(Boolean deleted, Long lecturerId);
 
     //Soft delete filter for the users of a course. enabled = null means "do not filter"
+
     @Query("""
             select new org.chud.springuniapi.repository.projection.UserSummaryRow(c.id, s.id, s.name)
             from Course c
@@ -48,4 +51,13 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             order by c.id, s.id
             """)
     List<UserSummaryRow> findUserSummariesByCourseIds(Collection<Long> courseIds, Boolean deleted);
+
+    @Query("select c from Course c join fetch c.department d where c.deleted = false and d.deleted = false")
+    List<Course> findAllActiveWithDepartment();
+
+    @Query("select c from Course c join fetch c.department d where c.id = :id and c.deleted = false and d.deleted = false")
+    Optional<Course> findActiveByIdWithDepartment(Long id);
+
 }
+
+

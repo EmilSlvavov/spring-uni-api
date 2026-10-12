@@ -15,7 +15,8 @@ public interface ICourseService {
 
     CourseResponse findById(Long id, Boolean deleted);
 
-    List<CourseSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted);
+
+    List<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId);
 
     CourseResponse update(Long id, UpdateCourseRequest request);
 

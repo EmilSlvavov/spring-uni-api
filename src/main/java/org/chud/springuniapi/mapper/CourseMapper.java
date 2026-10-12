@@ -40,6 +40,8 @@ public interface CourseMapper {
     @Mapping(target = "type", constant = "ONLINE")
     @Mapping(target = "roomNumber", ignore = true)
     @Mapping(target = "users", source = "userSummaries")
+    @Mapping(target = "lecturerName", source = "course.lecturer.name")
+    @Mapping(target = "lecturerId", source = "course.lecturer.id")
     CourseResponse toResponse(OnlineCourse course, List<UserSummaryResponse> userSummaries);
 
     //toResponse for onsite
@@ -48,6 +50,8 @@ public interface CourseMapper {
     @Mapping(target = "type", constant = "ONSITE")
     @Mapping(target = "meetingUrl", ignore = true)
     @Mapping(target = "users", source = "userSummaries")
+    @Mapping(target = "lecturerName", source = "course.lecturer.name")
+    @Mapping(target = "lecturerId", source = "course.lecturer.id")
     CourseResponse toResponse(OnsiteCourse course, List<UserSummaryResponse> userSummaries);
 
     @Mapping(target = "departmentId", source = "department.id")
@@ -55,6 +59,8 @@ public interface CourseMapper {
     @Mapping(target = "type", constant = "ONLINE")
     @Mapping(target = "roomNumber", ignore = true)
     @Mapping(target = "isDeleted", source = "deleted")
+    @Mapping(target = "lecturerName", source = "course.lecturer.name")
+    @Mapping(target = "lecturerId", source = "course.lecturer.id")
     CourseSoftDeleteResponse toResponseWithSoftDelete(OnlineCourse course);
 
     @Mapping(target = "departmentId", source = "department.id")
@@ -62,5 +68,7 @@ public interface CourseMapper {
     @Mapping(target = "type", constant = "ONSITE")
     @Mapping(target = "meetingUrl", ignore = true)
     @Mapping(target = "isDeleted", source = "deleted")
+    @Mapping(target = "lecturerName", source = "course.lecturer.name")
+    @Mapping(target = "lecturerId", source = "course.lecturer.id")
     CourseSoftDeleteResponse toResponseWithSoftDelete(OnsiteCourse course);
 }

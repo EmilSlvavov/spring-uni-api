@@ -16,8 +16,8 @@ public class OnsiteCourse extends Course {
 
     private Long roomNumber;
 
-    public OnsiteCourse(String name, Department department, Long roomNumber) {
-        super(name, department);
+    public OnsiteCourse(String name, Department department, User lecturer, Long roomNumber) {
+        super(name, department, lecturer);
         this.roomNumber = roomNumber;
     }
 }

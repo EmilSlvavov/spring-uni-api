@@ -27,6 +27,9 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     @EntityGraph(attributePaths = "contacts")
     Optional<Department> findWithContactsById(Long id);
 
+    @EntityGraph(attributePaths = "contacts")
+    Optional<Department> findWithContactsByIdAndDeleted(Long id, boolean deleted);
+
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Department> findWithLockById(Long id);
 
@@ -43,4 +46,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
             order by d.id, c.id
             """)
     List<CourseSummaryRow> findCourseSummariesByDepartmentIds(Collection<Long> departmentIds, Boolean deleted);
+
+    boolean existsByIdAndDeletedFalse(Long id);
 }

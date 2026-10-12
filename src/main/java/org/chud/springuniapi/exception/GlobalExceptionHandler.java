@@ -13,6 +13,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.slf4j.MDC;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
@@ -39,7 +43,7 @@ public class GlobalExceptionHandler {
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
-                "Invalid Input"
+                "The requested resource was not found"
         );
 
         problemDetail.setTitle("Resource Not Found");
@@ -237,6 +241,58 @@ public class GlobalExceptionHandler {
         problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         problemDetail.setInstance(URI.create(""));
 
+        return problemDetail;
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 400 bad parameter '{}': {}", request.getMethod(), request.getRequestURI(), ex.getName(), ex.getValue());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Parameter '" + ex.getName() + "' has an invalid value");
+        problemDetail.setTitle("Bad Request");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 400 missing parameter '{}'", request.getMethod(), request.getRequestURI(), ex.getParameterName());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Parameter '" + ex.getParameterName() + "' is required");
+        problemDetail.setTitle("Bad Request");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 400 unreadable body: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Request body is missing or malformed");
+        problemDetail.setTitle("Bad Request");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn("{} {} -> 405 method not supported", request.getMethod(), request.getRequestURI());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "Method " + ex.getMethod() + " is not supported for this URL");
+        problemDetail.setTitle("Method Not Allowed");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
         return problemDetail;
     }
 }

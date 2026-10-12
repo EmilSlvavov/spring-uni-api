@@ -1,6 +1,7 @@
 package org.chud.springuniapi.mapper;
 
 import org.chud.springuniapi.dto.response.CourseSummaryResponse;
+import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
 import org.chud.springuniapi.entity.User;
@@ -21,4 +22,7 @@ public interface UserMapper {
     @Mapping(target = "isDeleted", source = "user.deleted")
     UserSoftDeleteResponse toResponseWithSoftDelete(User user,
         List<CourseSummaryResponse> courseSummaries);
+
+    @Mapping(target = "role", source = "role.roleName")
+    MeResponse toMeResponse(User user);
 }

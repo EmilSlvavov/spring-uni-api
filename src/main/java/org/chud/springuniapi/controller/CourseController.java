@@ -7,13 +7,17 @@ import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
+import org.chud.springuniapi.security.MyUserDetails;
 import org.chud.springuniapi.service.facade.ICourseCatalogFacade;
 import org.chud.springuniapi.service.serviceInterface.ICourseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -29,7 +33,7 @@ public class CourseController {
 
     @GetMapping
     public List<CourseResponse> getAll(@RequestParam(required = false) Long departmentId,
-        @RequestParam(required = false) Boolean deleted) {
+                                       @RequestParam(required = false) Boolean deleted) {
         return departmentId == null
                 ? courseService.findAll(deleted)
                 : courseCatalogFacade.findByDepartment(departmentId, deleted);
@@ -46,23 +50,36 @@ public class CourseController {
         return courseCatalogFacade.findSummariesByDepartment(departmentId);
     }
 
-    @GetMapping("/softDeleted/{isDeleted}")
-    public List<CourseSoftDeleteResponse> getBySoftDeleted(@PathVariable boolean isDeleted){
-        return courseService.findAllBySoftDeleted(isDeleted);
+    @GetMapping("/softDeleted")
+    public List<CourseSoftDeleteResponse> getBySoftDeleted(@RequestParam(required = false) Boolean deleted
+            , @AuthenticationPrincipal MyUserDetails principal
+    ) {
+
+        boolean admin = principal.getAuthorities().stream().anyMatch(authority ->
+                        "ROLE_ADMIN".equals(authority.getAuthority()));
+
+        Long lecturerId = admin ? null : principal.id();
+
+        return courseService.findAllBySoftDeleted(deleted, lecturerId);
     }
 
     @PostMapping("/online")
-    public ResponseEntity<CourseResponse> createOnline(@Valid @RequestBody CreateOnlineCourseRequest request) {
-        CourseResponse created = courseCatalogFacade.createOnline(request);
+    public ResponseEntity<CourseResponse> createOnline(@Valid @RequestBody CreateOnlineCourseRequest request
+            , @AuthenticationPrincipal MyUserDetails principal
+    ) {
+        CourseResponse created = courseCatalogFacade.createOnline(request, principal.id());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PostMapping("/onsite")
-    public ResponseEntity<CourseResponse> createOnsite(@Valid @RequestBody CreateOnsiteCourseRequest request) {
-        CourseResponse created = courseCatalogFacade.createOnsite(request);
+    public ResponseEntity<CourseResponse> createOnsite(@Valid @RequestBody CreateOnsiteCourseRequest request
+            , @AuthenticationPrincipal MyUserDetails principal
+    ) {
+        CourseResponse created = courseCatalogFacade.createOnsite(request, principal.id());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isCourseOwner(#id, authentication)")
     @PutMapping("/{id}")
     public CourseResponse update(
             @PathVariable Long id,
@@ -77,13 +94,15 @@ public class CourseController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isCourseOwner(#id, authentication)")
     @DeleteMapping("/softDeleted/{id}")
-    public CourseSoftDeleteResponse softDelete(@PathVariable Long id){
+    public CourseSoftDeleteResponse softDelete(@PathVariable Long id) {
         return courseService.softDelete(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN') || @authorizationService.isCourseOwner(#id, authentication)")
     @PatchMapping("/softDeleted/{id}")
-    public CourseSoftDeleteResponse restoreSoftDelete(@PathVariable Long id){
+    public CourseSoftDeleteResponse restoreSoftDelete(@PathVariable Long id) {
         return courseService.restoreSoftDelete(id);
     }
 }

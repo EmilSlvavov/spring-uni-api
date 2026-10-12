@@ -91,15 +91,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     //mask all the email password and token fields with *****
     //So {"name":"Ana","email":"ana@uni.bg"} becomes {"name":"Ana","email":"***"}.
     private String mask(String body) {
-        return body.replaceAll("(?i)(\"(?:email|password|token)\"\\s*:\\s*\")[^\"]*(\")", "$1***$2");
+        return body.replaceAll("(?i)(\"(?:email|password|token|refreshToken)\"\\s*:\\s*\")[^\"]*(\")", "$1***$2");
     }
-
-
-    //makes sure you do not filter requests if the uri starts  with actuator, equals /error or /favicon.ico method was suggested but right now
-    //it isnt functional right now
-//    @Override
-//    protected boolean shouldNotFilter(HttpServletRequest request) {
-//        String uri = request.getRequestURI();
-//        return uri.startsWith("/actuator") || uri.equals("/error") || uri.equals("/favicon.ico");
-//    }
 }

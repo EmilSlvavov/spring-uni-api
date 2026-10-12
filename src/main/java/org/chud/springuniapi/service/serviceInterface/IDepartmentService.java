@@ -15,7 +15,7 @@ public interface IDepartmentService {
 
     DepartmentResponse findById(Long id, Boolean deleted);
 
-    List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(boolean isDeleted);
+    List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean isDeleted);
 
     DepartmentResponse create(CreateDepartmentRequest request);
 

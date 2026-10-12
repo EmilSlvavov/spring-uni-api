@@ -33,9 +33,10 @@ public class DepartmentController {
         return departmentService.findById(id, deleted);
     }
 
-    @GetMapping("/softDeleted/{isDeleted}")
-    public List<DepartmentSoftDeleteResponse> getBySoftDeleted(@PathVariable boolean isDeleted){
-        return departmentService.findAllBySoftDeleted(isDeleted);
+    @GetMapping("/softDeleted")
+    public List<DepartmentSoftDeleteResponse> getBySoftDeleted(
+            @RequestParam(required = false) Boolean deleted) {
+        return departmentService.findAllBySoftDeleted(deleted);
     }
 
     @PostMapping
