@@ -91,6 +91,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     //mask all the email password and token fields with *****
     //So {"name":"Ana","email":"ana@uni.bg"} becomes {"name":"Ana","email":"***"}.
     private String mask(String body) {
-        return body.replaceAll("(?i)(\"(?:email|password|token|refreshToken)\"\\s*:\\s*\")[^\"]*(\")", "$1***$2");
+        return body.replaceAll("(?i)(\"(?:email|password|token|refreshToken|currentPassword|newPassword)\"\\s*:\\s*\")[^\"]*(\")", "$1***$2");
     }
 }

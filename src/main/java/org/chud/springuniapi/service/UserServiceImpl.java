@@ -219,16 +219,37 @@ public class UserServiceImpl implements IUserService, IUserServiceInternal {
     @Transactional
     public UserResponse assignRole(Long id, Role role) {
         User user = userRepository.findWithCoursesById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("User", id));
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
         if (role.getRoleName() == RoleName.ADMIN && !user.getCourses().isEmpty()) {
             throw new BusinessRuleViolationException(
-                "a user enrolled in courses cannot be promoted to ADMIN");
+                    "a user enrolled in courses cannot be promoted to ADMIN");
         }
 
         user.setRole(role);
 
         return userMapper.toResponse(user, coursesOfForSingleUser(user, null));
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long id, String currentPassword, String newPassword) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new BusinessRuleViolationException("current password is incorrect");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(Long id, String newPassword) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
     }
 
     //get the courses by user with filter for soft delete value
