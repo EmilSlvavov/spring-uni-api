@@ -1,7 +1,9 @@
 package org.chud.springuniapi.service.facade;
 
+import org.chud.springuniapi.dto.request.ChangePasswordRequest;
 import org.chud.springuniapi.dto.request.CreateUserRequest;
 import org.chud.springuniapi.dto.request.RegisterRequest;
+import org.chud.springuniapi.dto.request.ResetPasswordRequest;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.entity.Role;
 import org.chud.springuniapi.enums.RoleName;
@@ -57,5 +59,22 @@ public class UserAccountFacadeImpl implements IUserAccountFacade {
         refreshTokenService.revokeAllFor(id);
 
         return response;
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long id, ChangePasswordRequest request) {
+        userService.changePassword(id, request.currentPassword(), request.newPassword());
+
+        refreshTokenService.revokeAllFor(id);
+
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(Long id, ResetPasswordRequest request) {
+        userService.resetPassword(id, request.newPassword());
+
+        refreshTokenService.revokeAllFor(id);
     }
 }

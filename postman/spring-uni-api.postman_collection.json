@@ -43,7 +43,14 @@
     { "key": "ownStudentId", "value": "" },
     { "key": "ownStudentEmail", "value": "" },
     { "key": "ownStudentToken", "value": "" },
-    { "key": "ownedCourseId", "value": "" }
+    { "key": "ownedCourseId", "value": "" },
+    { "key": "pwUserId", "value": "" },
+    { "key": "pwUserEmail", "value": "" },
+    { "key": "pwUserToken", "value": "" },
+    { "key": "pwUserRefresh", "value": "" },
+    { "key": "adminId", "value": "" },
+    { "key": "changedPassword", "value": "Ch4ngedPassw0rd" },
+    { "key": "resetPassword", "value": "R3setPassw0rd" }
   ],
   "auth": {
     "type": "bearer",
@@ -2240,7 +2247,271 @@
       ]
     },
     {
-      "name": "11 Cleanup",
+      "name": "11 Passwords (change own, admin reset, session revocation)",
+      "item": [
+        {
+          "name": "POST /api/users - create the password-test user (STUDENT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('pwUserId', body.id);",
+            "pm.collectionVariables.set('pwUserEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Password Test User\",\n  \"email\": \"pw-{{$randomInt}}{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"STUDENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the password-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('pwUserToken', body.token);",
+            "pm.collectionVariables.set('pwUserRefresh', body.refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{pwUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "GET /api/users/me - as ADMIN (remember the admin id)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('adminId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/users/password/me - WRONG current password -> 422",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+            "pm.test('ProblemDetail explains why', () => pm.expect(pm.response.json().detail).to.include('current password is incorrect'));",
+            "// 422 and not 401: the frontend interceptor treats every 401 as an expired token."
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{pwUserToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"not-the-password\",\n  \"newPassword\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/users/password/me - new password too short -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('newPassword error: password must be between 8 and 72 characters', () => pm.expect(pm.response.json().errors.newPassword).to.eql('password must be between 8 and 72 characters'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{pwUserToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"{{newUserPassword}}\",\n  \"newPassword\": \"short\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/users/password/me - blank current password -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('currentPassword error: current password is required', () => pm.expect(pm.response.json().errors.currentPassword).to.eql('current password is required'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{pwUserToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"\",\n  \"newPassword\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/users/password/me - anonymous -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"{{newUserPassword}}\",\n  \"newPassword\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/users/password/me - correct current password -> 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{pwUserToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"{{newUserPassword}}\",\n  \"newPassword\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "me"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - the old session was revoked -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{pwUserRefresh}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - OLD password no longer works -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{pwUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - NEW password works (the change was persisted)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('pwUserToken', body.token);",
+            "pm.collectionVariables.set('pwUserRefresh', body.refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{pwUserEmail}}\",\n  \"password\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "PUT /api/users/password/{id} - a STUDENT cannot reset passwords -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{pwUserToken}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"{{resetPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/{{pwUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "{{pwUserId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/users/password/{id} - ADMIN on their OWN id -> 422",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+            "// Without this check an admin could skip the current-password proof for their own account."
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"{{resetPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/{{adminId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "{{adminId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/users/password/{id} - new password too short -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('newPassword error: password must be between 8 and 72 characters', () => pm.expect(pm.response.json().errors.newPassword).to.eql('password must be between 8 and 72 characters'));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"short\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/{{pwUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "{{pwUserId}}"] }
+          }
+        },
+        {
+          "name": "PUT /api/users/password/999999 - missing user -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"{{resetPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/999999", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "999999"] }
+          }
+        },
+        {
+          "name": "PUT /api/users/password/{id} - ADMIN resets the user -> 204",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"{{resetPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users/password/{{pwUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "password", "{{pwUserId}}"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh - the user's session was revoked by the reset -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{pwUserRefresh}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - the password before the reset no longer works -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{pwUserEmail}}\",\n  \"password\": \"{{changedPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - the password the admin set works",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('pwUserToken', body.token);",
+            "pm.collectionVariables.set('pwUserRefresh', body.refreshToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{pwUserEmail}}\",\n  \"password\": \"{{resetPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Cleanup",
       "item": [
         {
           "name": "DELETE department (cascades to both courses, user still enrolled)",
@@ -2314,6 +2585,17 @@
             "method": "DELETE",
             "header": [],
             "url": { "raw": "{{baseUrl}}/api/users/{{ownStudentId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{ownStudentId}}"] }
+          }
+        },
+        {
+          "name": "DELETE the password-test user",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{pwUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{pwUserId}}"] }
           }
         }
       ]

@@ -1,14 +1,12 @@
 package org.chud.springuniapi.controller;
 
 import jakarta.validation.Valid;
-import org.chud.springuniapi.dto.request.AssignRoleRequest;
-import org.chud.springuniapi.dto.request.CreateUserRequest;
-import org.chud.springuniapi.dto.request.UpdateUserProfileRequest;
-import org.chud.springuniapi.dto.request.UpdateUserRequest;
+import org.chud.springuniapi.dto.request.*;
 import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.security.MyUserDetails;
 import org.chud.springuniapi.service.facade.IEnrollmentFacade;
 import org.chud.springuniapi.service.facade.IUserAccountFacade;
@@ -44,6 +42,26 @@ public class UserController {
     @GetMapping("/me")
     public MeResponse getMe(@AuthenticationPrincipal MyUserDetails principal) {
         return userService.findMe(principal.id());
+    }
+
+    @PostMapping("/password/me")
+    public ResponseEntity<Void> changePassword(@AuthenticationPrincipal MyUserDetails principal,
+                                               @Valid @RequestBody ChangePasswordRequest request) {
+        userAccountFacade.changePassword(principal.id(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/password/{id}")
+    public ResponseEntity<Void> resetPassword(@PathVariable Long id,
+                                              @Valid @RequestBody ResetPasswordRequest request,
+                                              @AuthenticationPrincipal MyUserDetails principal
+                                              ) {
+        if (principal.id().equals(id)) {
+            throw new BusinessRuleViolationException("use change password endpoint to change your own password");
+        }
+        userAccountFacade.resetPassword(id, request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

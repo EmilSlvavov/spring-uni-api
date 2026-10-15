@@ -24,4 +24,8 @@ public interface IUserServiceInternal {
     UserResponse create(CreateUserRequest request, Role role);
 
     UserResponse assignRole(Long id, Role role);
+
+    void changePassword(Long id, String currentPassword, String newPassword);
+
+    void resetPassword(Long id, String newPassword);
 }
