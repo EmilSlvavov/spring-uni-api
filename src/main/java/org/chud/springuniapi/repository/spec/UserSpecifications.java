@@ -4,7 +4,7 @@ import org.chud.springuniapi.entity.User;
 import org.chud.springuniapi.enums.RoleName;
 import org.springframework.data.jpa.domain.Specification;
 
-public class UserSpecifications {
+public final class UserSpecifications {
 
     private UserSpecifications() { }
 
