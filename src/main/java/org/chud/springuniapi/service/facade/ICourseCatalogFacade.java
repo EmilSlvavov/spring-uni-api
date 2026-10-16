@@ -5,12 +5,16 @@ import org.chud.springuniapi.dto.request.CreateOnlineCourseRequest;
 import org.chud.springuniapi.dto.request.CreateOnsiteCourseRequest;
 import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
+import org.chud.springuniapi.enums.CourseType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ICourseCatalogFacade {
 
     List<CourseListItemResponse> findSummariesByDepartment(Long departmentId);
 
-    List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted);
+    Page<CourseResponse> search(String q, CourseType type, Long departmentId, Long lecturerId,
+                                Boolean deleted, Pageable pageable);
 
     CourseResponse createOnline(CreateOnlineCourseRequest request, Long creatorId);
 

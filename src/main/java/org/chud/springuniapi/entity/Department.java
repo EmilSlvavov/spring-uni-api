@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -26,6 +27,7 @@ public class Department extends BaseEntity{
 
     //Separate table, connected by foreign key on id
     //Used mainly for small and few values
+    @BatchSize(size = 20)
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "department_contacts",

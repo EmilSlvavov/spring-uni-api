@@ -9,10 +9,13 @@ import org.chud.springuniapi.dto.response.CourseListItemResponse;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.entity.User;
+import org.chud.springuniapi.enums.CourseType;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.service.serviceInterface.internal.ICourseServiceInternal;
 import org.chud.springuniapi.service.serviceInterface.internal.IDepartmentServiceInternal;
 import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,10 +47,11 @@ public class CourseCatalogFacadeImpl implements ICourseCatalogFacade {
     }
 
     @Override
-    public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
-        List<CourseResponse> courses = courseService.findByDepartment(departmentId, deleted);
+    public Page<CourseResponse> search(String q, CourseType type, Long departmentId, Long lecturerId,
+                                       Boolean deleted, Pageable pageable) {
+        Page<CourseResponse> courses = courseService.search(q, type, departmentId, lecturerId, deleted, pageable);
 
-        if (courses.isEmpty()) {
+        if (departmentId != null && courses.isEmpty()) {
             departmentService.requireExists(departmentId);
         }
 

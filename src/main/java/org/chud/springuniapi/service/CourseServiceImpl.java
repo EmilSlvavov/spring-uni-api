@@ -8,14 +8,19 @@ import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
 import org.chud.springuniapi.dto.response.UserSummaryResponse;
 import org.chud.springuniapi.entity.*;
+import org.chud.springuniapi.enums.CourseType;
 import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.CourseMapper;
 import org.chud.springuniapi.repository.CourseRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryView;
 import org.chud.springuniapi.repository.projection.UserSummaryRow;
+import org.chud.springuniapi.repository.spec.CourseSpecifications;
 import org.chud.springuniapi.service.serviceInterface.ICourseService;
 import org.chud.springuniapi.service.serviceInterface.internal.ICourseServiceInternal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,13 +43,18 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     }
 
     @Override
-    public List<CourseResponse> findAll(Boolean deleted) {
-        List<Course> courses = courseRepository.findAllActiveWithDepartment();
-        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
+    public Page<CourseResponse> search(String q, CourseType type, Long departmentId, Long lecturerId,
+                                       Boolean deleted, Pageable pageable) {
+        Specification<Course> spec = CourseSpecifications.isActive()
+                .and(CourseSpecifications.nameContains(q))
+                .and(CourseSpecifications.hasType(type))
+                .and(CourseSpecifications.inDepartment(departmentId))
+                .and(CourseSpecifications.taughtBy(lecturerId));
 
-        return courses.stream()
-                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
-                .toList();
+        Page<Course> page = courseRepository.findAll(spec, pageable);
+        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(page.getContent(), deleted);
+
+        return page.map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)));
     }
 
     @Override
@@ -150,17 +160,6 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
                         view.getId(),
                         view.getName(),
                         view.getDepartment().getName()))
-                .toList();
-    }
-
-    @Override
-    public List<CourseResponse> findByDepartment(Long departmentId, Boolean deleted) {
-        List<Course> courses = courseRepository.findByDepartmentIdAndDeletedFalseAndDepartmentDeletedFalse(departmentId);
-
-        Map<Long, List<UserSummaryResponse>> usersByCourse = listUsersByCourseId(courses, deleted);
-
-        return courses.stream()
-                .map(course -> courseMapper.toResponse(course, usersOfForMultipleCourses(usersByCourse, course)))
                 .toList();
     }
 

@@ -7,11 +7,15 @@ import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
 import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.chud.springuniapi.service.serviceInterface.IDepartmentService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/departments")
@@ -24,8 +28,11 @@ public class DepartmentController {
     }
 
     @GetMapping
-    public List<DepartmentResponse> getAll(@RequestParam(required = false) Boolean deleted) {
-        return departmentService.findAll(deleted);
+    public Page<DepartmentResponse> getAll(@RequestParam(required = false) Boolean deleted,
+                                           @PageableDefault(size = 20, sort = {"name", "id"}) Pageable pageable,
+                                           @RequestParam(required = false) String q) {
+        org.chud.springuniapi.controller.support.SortWhitelist.check(pageable, Set.of("name", "id"));
+        return departmentService.search(deleted, pageable, q);
     }
 
     @GetMapping("/{id}")

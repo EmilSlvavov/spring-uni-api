@@ -14,9 +14,13 @@ import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.UserMapper;
 import org.chud.springuniapi.repository.UserRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.repository.spec.UserSpecifications;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -55,18 +59,21 @@ public class UserServiceImpl implements IUserService, IUserServiceInternal {
     }
 
     @Override
-    public List<UserResponse> findAll(Boolean deleted) {
-        List<User> users = userRepository.findAll();
-        //get the map of courses filtered by soft delete used to show users with their courses
-        Map<Long, List<CourseSummaryResponse>> coursesByUser = listCoursesByUserId(users, deleted);
+    public Page<UserResponse> search(Boolean deleted, Pageable pageable, String q, RoleName role) {
 
-        return users.stream()
+        Specification<User> spec = UserSpecifications.hasRole(role)
+                .and(UserSpecifications.matches(q));
+
+        Page<User> page = userRepository.findAll(spec, pageable);
+        //get the map of courses filtered by soft delete used to show users with their courses
+        Map<Long, List<CourseSummaryResponse>> coursesByUser = listCoursesByUserId(page.getContent(), deleted);
+
+        return page
                 .map(user -> userMapper.toResponse(
                         user,
                         coursesOfForMultipleUsers(
                                 coursesByUser,
-                                user)))
-                .toList();
+                                user)));
     }
 
     @Override

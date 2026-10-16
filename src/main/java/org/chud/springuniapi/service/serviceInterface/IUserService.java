@@ -6,6 +6,9 @@ import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.enums.RoleName;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -14,7 +17,7 @@ import java.util.List;
 public interface IUserService {
 
     //enabled = null means the ?enabled param was absent, so the courses are not filtered
-    List<UserResponse> findAll(Boolean deleted);
+    Page<UserResponse> search(Boolean deleted, Pageable pageable, String q, RoleName role);
 
     UserResponse findById(Long id, Boolean deleted);
 

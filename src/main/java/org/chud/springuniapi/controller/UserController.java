@@ -6,12 +6,16 @@ import org.chud.springuniapi.dto.response.MeResponse;
 import org.chud.springuniapi.dto.response.UserDisplayResponse;
 import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.dto.response.UserSoftDeleteResponse;
+import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.exception.BusinessRuleViolationException;
 import org.chud.springuniapi.security.MyUserDetails;
 import org.chud.springuniapi.service.facade.IEnrollmentFacade;
 import org.chud.springuniapi.service.facade.IUserAccountFacade;
 import org.chud.springuniapi.service.serviceInterface.IUserService;
 import org.chud.springuniapi.validation.NotAdmin;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +23,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/users")
@@ -65,8 +70,12 @@ public class UserController {
     }
 
     @GetMapping
-    public List<UserResponse> getAll(@RequestParam(required = false) Boolean deleted) {
-        return userService.findAll(deleted);
+    public Page<UserResponse> getAll(@RequestParam(required = false) Boolean deleted,
+                                     @PageableDefault(size = 20, sort = {"name", "id"}) Pageable pageable,
+                                     @RequestParam(required = false) String q,
+                                     @RequestParam(required = false)RoleName role) {
+        org.chud.springuniapi.controller.support.SortWhitelist.check(pageable, Set.of("name", "id"));
+        return userService.search(deleted, pageable, q ,role);
     }
 
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")

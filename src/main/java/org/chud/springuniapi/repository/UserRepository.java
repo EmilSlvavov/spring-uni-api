@@ -4,15 +4,24 @@ import org.chud.springuniapi.entity.User;
 import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
 import org.chud.springuniapi.repository.projection.UserDisplayView;
+import org.jspecify.annotations.NonNull;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+
+    @EntityGraph(attributePaths = {"role"})
+    Page<User> findAll(@NonNull Specification<User> spec, @NonNull Pageable pageable);
+
 
     boolean existsByEmailIgnoreCase(String email);
 
