@@ -50,7 +50,13 @@
     { "key": "pwUserRefresh", "value": "" },
     { "key": "adminId", "value": "" },
     { "key": "changedPassword", "value": "Ch4ngedPassw0rd" },
-    { "key": "resetPassword", "value": "R3setPassw0rd" }
+    { "key": "resetPassword", "value": "R3setPassw0rd" },
+    { "key": "pageZeroIds", "value": "" },
+    { "key": "pageZeroTotal", "value": "" },
+    { "key": "courseTotal", "value": "" },
+    { "key": "courseTerm", "value": "" },
+    { "key": "onlineTotal", "value": "" },
+    { "key": "departmentTerm", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -199,7 +205,7 @@
           "name": "GET /api/departments - list all",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('returns an array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+            "pm.test('returns a page: content array + page metadata', () => { const b = pm.response.json(); pm.expect(b.content).to.be.an('array'); pm.expect(b.page).to.include.keys('size', 'number', 'totalElements', 'totalPages'); });",
             "// Watch show-sql: the @EntityGraph on findAll should fetch contacts",
             "// in ONE query, not one per department."
           ] } }],
@@ -343,15 +349,16 @@
           "name": "GET /api/courses - list all (polymorphic)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const types = pm.response.json().map(c => c.type);",
+            "const types = pm.response.json().content.map(c => c.type);",
             "pm.test('one query returns BOTH subtypes', () => {",
             "    pm.expect(types).to.include('ONLINE');",
             "    pm.expect(types).to.include('ONSITE');",
             "});",
-            "pm.test('every row has a type', () => pm.expect(types.every(t => t)).to.be.true);"
+            "pm.test('every row has a type', () => pm.expect(types.every(t => t)).to.be.true);",
+            "pm.test('everything fits on one page of 100', () => pm.expect(pm.response.json().page.totalPages).to.eql(1))"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses", "host": ["{{baseUrl}}"], "path": ["api", "courses"] } }
+            "url": { "raw": "{{baseUrl}}/api/courses?size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "size", "value": "100" }] } }
         },
         {
           "name": "GET /api/courses?departmentId - filtered",
@@ -359,7 +366,7 @@
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
             "pm.test('every course belongs to the requested department', () => {",
             "    const expected = Number(pm.collectionVariables.get('departmentId'));",
-            "    pm.response.json().forEach(c => pm.expect(c.departmentId).to.eql(expected));",
+            "    pm.response.json().content.forEach(c => pm.expect(c.departmentId).to.eql(expected));",
             "});"
           ] } }],
           "request": { "method": "GET", "header": [],
@@ -476,6 +483,7 @@
           "name": "GET /api/users - list all",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('returns a page with the default size 20', () => pm.expect(pm.response.json().page.size).to.eql(20));",
             "// SQL to expect: ONE select joining user_courses (the @EntityGraph)",
             "// plus a join to user_profiles (the @SecondaryTable)."
           ] } }],
@@ -732,14 +740,15 @@
           "name": "GET /api/departments - the public list leaves it out",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const ids = pm.response.json().map(d => d.id);",
+            "const ids = pm.response.json().content.map(d => d.id);",
             "pm.test('our soft-deleted department is not in the list', () => {",
             "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('departmentId')));",
             "});",
+            "pm.test('the whole list fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.eql(1));",
             "// Even this admin token gets only active departments from the public list."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"] } }
+            "url": { "raw": "{{baseUrl}}/api/departments?size=100", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "size", "value": "100" }] } }
         },
         {
           "name": "GET /api/departments/softDeleted - no filter returns deleted AND active",
@@ -2511,7 +2520,396 @@
       ]
     },
     {
-      "name": "12 Cleanup",
+      "name": "12 Pagination, sorting & filtering (Pageable, VIA_DTO, sort whitelist, Specifications)",
+      "item": [
+        {
+          "name": "GET /api/departments?page=0&size=2 - first page",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "pm.test('at most 2 rows', () => pm.expect(b.content.length).to.be.at.most(2));",
+            "pm.test('page metadata matches the request', () => { pm.expect(b.page.size).to.eql(2); pm.expect(b.page.number).to.eql(0); });",
+            "pm.test('totalPages = ceil(totalElements / size)', () => pm.expect(b.page.totalPages).to.eql(Math.ceil(b.page.totalElements / 2)));",
+            "pm.collectionVariables.set('pageZeroIds', JSON.stringify(b.content.map(d => d.id)));",
+            "pm.collectionVariables.set('pageZeroTotal', b.page.totalElements);"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?page=0&size=2&sort=id", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "2" }, { "key": "sort", "value": "id" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?page=1&size=2 - second page does not repeat the first",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "const first = JSON.parse(pm.collectionVariables.get('pageZeroIds'));",
+            "pm.test('no department appears on both pages', () => b.content.forEach(d => pm.expect(first).to.not.include(d.id)));",
+            "pm.test('totalElements is the same on every page', () => pm.expect(b.page.totalElements).to.eql(Number(pm.collectionVariables.get('pageZeroTotal'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?page=1&size=2&sort=id", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "page", "value": "1" }, { "key": "size", "value": "2" }, { "key": "sort", "value": "id" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments - defaults (size 20, page 0)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('default page size from @PageableDefault', () => pm.expect(pm.response.json().page.size).to.eql(20));",
+            "pm.test('starts at page 0', () => pm.expect(pm.response.json().page.number).to.eql(0));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"] }
+          }
+        },
+        {
+          "name": "GET /api/users?size=5000 - capped at max-page-size 100",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('size capped at 100', () => pm.expect(pm.response.json().page.size).to.eql(100));",
+            "pm.test('never more than 100 rows', () => pm.expect(pm.response.json().content.length).to.be.at.most(100));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?size=5000", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "size", "value": "5000" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?sort=id,desc - descending order",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().content.map(c => c.id);",
+            "pm.test('ids strictly descending', () => ids.slice(1).forEach((id, k) => pm.expect(id).to.be.below(ids[k])));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?sort=id,desc&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "sort", "value": "id,desc" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?sort=id - ascending order",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().content.map(c => c.id);",
+            "pm.test('ids strictly ascending', () => ids.slice(1).forEach((id, k) => pm.expect(id).to.be.above(ids[k])));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?sort=id&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "sort", "value": "id" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?departmentId&size=1 - filter + paging together",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "pm.test('one row per page', () => pm.expect(b.content.length).to.be.at.most(1));",
+            "pm.test('one page per course', () => pm.expect(b.page.totalPages).to.eql(b.page.totalElements));",
+            "pm.test('still filtered by department', () => b.content.forEach(c => pm.expect(c.departmentId).to.eql(Number(pm.collectionVariables.get('departmentId')))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?departmentId={{departmentId}}&size=1", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "departmentId", "value": "{{departmentId}}" }, { "key": "size", "value": "1" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?sort=password - not whitelisted -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('ProblemDetail title', () => pm.expect(pm.response.json().title).to.eql('Invalid Sort Parameter'));",
+            "pm.test('detail names the rejected field', () => pm.expect(pm.response.json().detail).to.include('password'));",
+            "// password EXISTS on User, so only the whitelist stops this - PropertyReferenceException would not."
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?sort=password", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "sort", "value": "password" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?sort=name&sort=password - every sort field is checked -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('ProblemDetail title', () => pm.expect(pm.response.json().title).to.eql('Invalid Sort Parameter'));",
+            "pm.test('detail names the rejected field', () => pm.expect(pm.response.json().detail).to.include('password'));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?sort=name&sort=password", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "sort", "value": "name" }, { "key": "sort", "value": "password" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?sort=nonsense - unknown field -> 400 (not 500)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('ProblemDetail title', () => pm.expect(pm.response.json().title).to.eql('Invalid Sort Parameter'));",
+            "pm.test('detail names the rejected field', () => pm.expect(pm.response.json().detail).to.include('nonsense'));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?sort=nonsense", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "sort", "value": "nonsense" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?sort=lecturer.name - nested paths blocked -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('ProblemDetail title', () => pm.expect(pm.response.json().title).to.eql('Invalid Sort Parameter'));",
+            "pm.test('detail names the rejected field', () => pm.expect(pm.response.json().detail).to.include('lecturer.name'));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?sort=lecturer.name", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "sort", "value": "lecturer.name" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?page=999 - past the end -> empty page, not an error",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('no rows', () => pm.expect(pm.response.json().content).to.be.empty);",
+            "pm.test('page number echoed back', () => pm.expect(pm.response.json().page.number).to.eql(999));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?page=999", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "page", "value": "999" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?size=100 - baseline for the filter tests",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "pm.collectionVariables.set('courseTotal', b.page.totalElements);",
+            "const first = b.content[0].name;",
+            "pm.collectionVariables.set('courseTerm', first.slice(0, Math.min(4, first.length)).toUpperCase());",
+            "// Upper-cased on purpose: the search must be case-insensitive."
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?q= - name contains, case-insensitive",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "const term = pm.collectionVariables.get('courseTerm').toLowerCase();",
+            "pm.test('at least the course the term was taken from', () => pm.expect(b.page.totalElements).to.be.at.least(1));",
+            "pm.test('every name contains the term (any case)', () => b.content.forEach(c => pm.expect(c.name.toLowerCase()).to.include(term)));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?q={{courseTerm}}&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "q", "value": "{{courseTerm}}" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?q=%20%20 - a blank search is no filter",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('same total as no filter at all', () => pm.expect(pm.response.json().page.totalElements).to.eql(Number(pm.collectionVariables.get('courseTotal'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?q=%20%20", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "q", "value": "%20%20" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?type=ONLINE - discriminator filter",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('only ONLINE courses', () => pm.response.json().content.forEach(c => pm.expect(c.type).to.eql('ONLINE')));",
+            "pm.collectionVariables.set('onlineTotal', pm.response.json().page.totalElements);"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?type=ONLINE&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "type", "value": "ONLINE" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?type=ONSITE&sort=id,desc - filter + sort",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const b = pm.response.json();",
+            "pm.test('only ONSITE courses', () => b.content.forEach(c => pm.expect(c.type).to.eql('ONSITE')));",
+            "pm.test('still sorted by id desc', () => b.content.slice(1).forEach((c, k) => pm.expect(c.id).to.be.below(b.content[k].id)));",
+            "pm.test('ONLINE + ONSITE = all courses', () => pm.expect(b.page.totalElements + Number(pm.collectionVariables.get('onlineTotal'))).to.eql(Number(pm.collectionVariables.get('courseTotal'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?type=ONSITE&sort=id,desc&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "type", "value": "ONSITE" }, { "key": "sort", "value": "id,desc" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?type=WIZARD - unknown enum -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?type=WIZARD", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "type", "value": "WIZARD" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?type=online - enum params are case-sensitive -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "// Deliberate: the frontend always sends ONLINE / ONSITE."
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?type=online", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "type", "value": "online" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?lecturerId= - courses taught by the owner professor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().content.map(x => x.id);",
+            "pm.test('includes the course they own', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));",
+            "pm.test('every row is taught by them', () => pm.response.json().content.forEach(c => pm.expect(c.lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId')))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?lecturerId={{ownerProfId}}&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "lecturerId", "value": "{{ownerProfId}}" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?departmentId&q=no-match - department exists -> empty 200, not 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('no rows', () => pm.expect(pm.response.json().content).to.be.empty);"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?departmentId={{departmentId}}&q=zzzz-no-match", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "departmentId", "value": "{{departmentId}}" }, { "key": "q", "value": "zzzz-no-match" }] }
+          }
+        },
+        {
+          "name": "GET /api/courses?departmentId=999999 - missing department -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses?departmentId=999999", "host": ["{{baseUrl}}"], "path": ["api", "courses"], "query": [{ "key": "departmentId", "value": "999999" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?size=1 - baseline term for the department search",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const first = pm.response.json().content[0].name;",
+            "pm.collectionVariables.set('departmentTerm', first.slice(0, Math.min(4, first.length)).toUpperCase());"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?size=1", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "size", "value": "1" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?q= - name contains, case-insensitive",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const term = pm.collectionVariables.get('departmentTerm').toLowerCase();",
+            "pm.test('at least one match', () => pm.expect(pm.response.json().page.totalElements).to.be.at.least(1));",
+            "pm.test('every name contains the term', () => pm.response.json().content.forEach(d => pm.expect(d.name.toLowerCase()).to.include(term)));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?q={{departmentTerm}}&size=100", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "q", "value": "{{departmentTerm}}" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/departments?q=no-match - empty page",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('nothing found', () => pm.expect(pm.response.json().page.totalElements).to.eql(0));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/departments?q=zzzz-no-match", "host": ["{{baseUrl}}"], "path": ["api", "departments"], "query": [{ "key": "q", "value": "zzzz-no-match" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?role=PROFESSOR - role filter",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const ids = pm.response.json().content.map(x => x.id);",
+            "pm.test('both test professors are in', () => { pm.expect(ids).to.include(Number(pm.collectionVariables.get('ownerProfId'))); pm.expect(ids).to.include(Number(pm.collectionVariables.get('otherProfId'))); });",
+            "pm.test('the test student is not', () => pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('ownStudentId'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?role=PROFESSOR&size=100", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "role", "value": "PROFESSOR" }, { "key": "size", "value": "100" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?q=<email> - q also matches the email",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('exactly that user (email is unique)', () => pm.expect(pm.response.json().content.map(u => u.id)).to.eql([Number(pm.collectionVariables.get('ownerProfId'))]));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?q={{ownerProfEmail}}", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "q", "value": "{{ownerProfEmail}}" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?q=owner professor&role=STUDENT - filters are AND-ed",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('name matches but role does not -> nothing', () => pm.expect(pm.response.json().content.map(u => u.id)).to.not.include(Number(pm.collectionVariables.get('ownerProfId'))));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?q=owner%20professor&role=STUDENT", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "q", "value": "owner%20professor" }, { "key": "role", "value": "STUDENT" }] }
+          }
+        },
+        {
+          "name": "GET /api/users?role=KING - unknown role -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users?role=KING", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "role", "value": "KING" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Cleanup",
       "item": [
         {
           "name": "DELETE department (cascades to both courses, user still enrolled)",

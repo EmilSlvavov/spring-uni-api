@@ -3,6 +3,9 @@ package org.chud.springuniapi.service.serviceInterface;
 import org.chud.springuniapi.dto.request.UpdateCourseRequest;
 import org.chud.springuniapi.dto.response.CourseResponse;
 import org.chud.springuniapi.dto.response.CourseSoftDeleteResponse;
+import org.chud.springuniapi.enums.CourseType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -10,11 +13,7 @@ import java.util.List;
 //both need the Department aggregate, so they moved to ICourseCatalogFacade.
 public interface ICourseService {
 
-    //enabled = null means the ?enabled param was absent, so the users are not filtered
-    List<CourseResponse> findAll(Boolean deleted);
-
     CourseResponse findById(Long id, Boolean deleted);
-
 
     List<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId);
 

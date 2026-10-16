@@ -5,13 +5,14 @@ import org.chud.springuniapi.dto.request.ReplaceContactsRequest;
 import org.chud.springuniapi.dto.request.UpdateDepartmentRequest;
 import org.chud.springuniapi.dto.response.DepartmentResponse;
 import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
 public interface IDepartmentService {
 
-    //enabled = null means the ?enabled param was absent, so the courses are not filtered
-    List<DepartmentResponse> findAll(Boolean deleted);
+    Page<DepartmentResponse> search(Boolean deleted, Pageable pageable, String q);
 
     DepartmentResponse findById(Long id, Boolean deleted);
 

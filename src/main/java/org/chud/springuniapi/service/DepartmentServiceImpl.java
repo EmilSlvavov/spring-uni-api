@@ -16,9 +16,13 @@ import org.chud.springuniapi.exception.ResourceNotFoundException;
 import org.chud.springuniapi.mapper.DepartmentMapper;
 import org.chud.springuniapi.repository.DepartmentRepository;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
+import org.chud.springuniapi.repository.spec.DepartmentSpecifications;
 import org.chud.springuniapi.service.serviceInterface.IDepartmentService;
 import org.chud.springuniapi.service.serviceInterface.internal.IDepartmentServiceInternal;
+import org.springframework.data.domain.Page;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,14 +46,17 @@ public class DepartmentServiceImpl implements IDepartmentService, IDepartmentSer
     }
 
     @Override
-    public List<DepartmentResponse> findAll(Boolean deleted) {
-        List<Department> departments = departmentRepository.findDepartmentByDeleted(false);
-        Map<Long, List<CourseSummaryResponse>> coursesByDepartment = listCoursesByDepartmentId(departments, deleted);
+    public Page<DepartmentResponse> search(Boolean deleted, Pageable pageable, String q) {
 
-        return departments.stream()
-            .map(department -> departmentMapper.toResponse(department,
-                coursesOfForMultipleDepartments(coursesByDepartment, department)))
-            .toList();
+        Specification<Department> spec = DepartmentSpecifications.isActive()
+                .and(DepartmentSpecifications.nameContains(q));
+
+        Page<Department> page = departmentRepository.findAll(spec, pageable);
+        Map<Long, List<CourseSummaryResponse>> coursesByDepartment =
+                listCoursesByDepartmentId(page.getContent(), deleted);
+
+        return page.map(department -> departmentMapper.toResponse(department,
+                coursesOfForMultipleDepartments(coursesByDepartment, department)));
     }
 
     @Override

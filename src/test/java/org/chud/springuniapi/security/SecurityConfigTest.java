@@ -18,7 +18,7 @@ class SecurityConfigTest extends SecurityWebTestSupport {
     @Test
     @DisplayName("an admin-only endpoint admits ADMIN and refuses STUDENT")
     void roleDecidesAccessToAdminEndpoints() {
-        when(userService.findAll(null)).thenReturn(List.of());
+//        when(userService.findAll(null)).thenReturn(List.of());
 
         assertThat(get("/api/users", tokenFor(1L, "ADMIN"))).hasStatusOk();
 

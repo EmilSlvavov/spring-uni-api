@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.method.ParameterValidationResult;
@@ -158,6 +159,38 @@ public class GlobalExceptionHandler {
                 ex.getMessage()
         );
         problemDetail.setTitle("Business Logic Violation");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(InvalidSortException.class)
+    public ProblemDetail handleInvalidSort(InvalidSortException ex, HttpServletRequest request) {
+
+        log.warn("{} {} -> 400 invalid sort: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage()
+        );
+        problemDetail.setTitle("Invalid Sort Parameter");
+        problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
+        problemDetail.setInstance(URI.create(""));
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ProblemDetail handleUnknownProperty(PropertyReferenceException ex, HttpServletRequest request) {
+
+        log.warn("{} {} -> 400 unknown property: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "cannot sort by '" + ex.getPropertyName() + "'"
+        );
+        problemDetail.setTitle("Invalid Sort Parameter");
         problemDetail.setProperty("traceId", MDC.get(TRACE_ID));
         problemDetail.setInstance(URI.create(""));
 
