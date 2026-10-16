@@ -3,7 +3,6 @@ package org.chud.springuniapi.repository;
 import jakarta.persistence.LockModeType;
 import org.chud.springuniapi.entity.Department;
 import org.chud.springuniapi.repository.projection.CourseSummaryRow;
-import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
@@ -16,12 +15,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long>, J
     boolean existsByNameIgnoreCase(String name);
 
 
-    //find with contacts
-    @Override
-    @EntityGraph(attributePaths = "contacts")
-    @NonNull
-    List<Department> findAll();
-
     //find with contacts by id
     @EntityGraph(attributePaths = "contacts")
     Optional<Department> findWithContactsById(Long id);
@@ -32,8 +25,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long>, J
     @Lock(LockModeType.PESSIMISTIC_READ)
     Optional<Department> findWithLockById(Long id);
 
-    @EntityGraph(attributePaths = "contacts")
-    List<Department> findDepartmentByDeleted(boolean isDeleted);
+    Page<Department> findDepartmentByDeleted(boolean isDeleted, Pageable pageable);
 
     //Soft delete filter for the courses of a department. enabled = null means "do not filter"
     @Query("""

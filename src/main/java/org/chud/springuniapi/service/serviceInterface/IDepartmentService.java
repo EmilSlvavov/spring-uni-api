@@ -8,7 +8,6 @@ import org.chud.springuniapi.dto.response.DepartmentSoftDeleteResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 
 public interface IDepartmentService {
 
@@ -16,7 +15,7 @@ public interface IDepartmentService {
 
     DepartmentResponse findById(Long id, Boolean deleted);
 
-    List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean isDeleted);
+    Page<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean isDeleted, Pageable pageable);
 
     DepartmentResponse create(CreateDepartmentRequest request);
 

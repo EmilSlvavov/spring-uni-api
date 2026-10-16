@@ -25,6 +25,8 @@ public interface ICourseServiceInternal {
 
     boolean isLecturedBy(Long courseId, Long userId);
 
+    void unassignLecturer(Long lecturerId);
+
     List<CourseListItemResponse> findSummariesByDepartment(Long departmentId);
 
     CourseResponse createOnline(CreateOnlineCourseRequest request, Department department, User lecturer);

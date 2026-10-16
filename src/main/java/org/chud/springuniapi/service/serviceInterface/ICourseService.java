@@ -7,7 +7,6 @@ import org.chud.springuniapi.enums.CourseType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 
 //Single aggregate operations only. Creating a course and the by-department reads
 //both need the Department aggregate, so they moved to ICourseCatalogFacade.
@@ -15,7 +14,7 @@ public interface ICourseService {
 
     CourseResponse findById(Long id, Boolean deleted);
 
-    List<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId);
+    Page<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId, Pageable pageable);
 
     CourseResponse update(Long id, UpdateCourseRequest request);
 
