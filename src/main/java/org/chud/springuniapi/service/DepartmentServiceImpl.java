@@ -68,14 +68,12 @@ public class DepartmentServiceImpl implements IDepartmentService, IDepartmentSer
     }
 
     @Override
-    public List<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted) {
-        List<Department> departments = deleted == null
-                ? departmentRepository.findAll()
-                : departmentRepository.findDepartmentByDeleted(deleted);
+    public Page<DepartmentSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Pageable pageable) {
+        Page<Department> departments = deleted == null
+                ? departmentRepository.findAll(pageable)
+                : departmentRepository.findDepartmentByDeleted(deleted, pageable);
 
-        return departments.stream()
-                .map(departmentMapper::toResponseWithSoftDelete)
-                .toList();
+        return departments.map(departmentMapper::toResponseWithSoftDelete);
     }
 
     //changed so it checks if it won the race condition and throws if not

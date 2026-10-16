@@ -56,7 +56,11 @@
     { "key": "courseTotal", "value": "" },
     { "key": "courseTerm", "value": "" },
     { "key": "onlineTotal", "value": "" },
-    { "key": "departmentTerm", "value": "" }
+    { "key": "departmentTerm", "value": "" },
+    { "key": "departingProfId", "value": "" },
+    { "key": "departingProfEmail", "value": "" },
+    { "key": "departingProfToken", "value": "" },
+    { "key": "departingCourseId", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -685,7 +689,7 @@
           "name": "GET /api/departments/softDeleted?deleted=false - department starts active",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const rows = pm.response.json();",
+            "const rows = pm.response.json().content;",
             "pm.test('our department is in the active list', () => {",
             "    const expected = Number(pm.collectionVariables.get('departmentId'));",
             "    pm.expect(rows.map(d => d.id)).to.include(expected);",
@@ -696,7 +700,7 @@
             "// query - without it this is an extra select per department."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=false", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }] } }
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=false&size=100", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }, { "key": "size", "value": "100" }] } }
         },
         {
           "name": "DELETE /api/departments/softDeleted/{id} - flag it (a DELETE that deletes nothing)",
@@ -715,7 +719,7 @@
           "name": "GET /api/departments/softDeleted?deleted=true - now listed as soft-deleted",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const rows = pm.response.json();",
+            "const rows = pm.response.json().content;",
             "pm.test('our department moved to the deleted list', () => {",
             "    const expected = Number(pm.collectionVariables.get('departmentId'));",
             "    pm.expect(rows.map(d => d.id)).to.include(expected);",
@@ -723,7 +727,7 @@
             "pm.test('every row really is isDeleted=true', () => rows.forEach(d => pm.expect(d.isDeleted).to.be.true));"
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] } }
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?deleted=true&size=100", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }, { "key": "size", "value": "100" }] } }
         },
         {
           "name": "GET /api/departments/{id} - a soft-deleted department is hidden -> 404",
@@ -744,7 +748,7 @@
             "pm.test('our soft-deleted department is not in the list', () => {",
             "    pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('departmentId')));",
             "});",
-            "pm.test('the whole list fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.eql(1));",
+            "pm.test('the whole list fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.be.at.most(1));",
             "// Even this admin token gets only active departments from the public list."
           ] } }],
           "request": { "method": "GET", "header": [],
@@ -754,7 +758,7 @@
           "name": "GET /api/departments/softDeleted - no filter returns deleted AND active",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const rows = pm.response.json();",
+            "const rows = pm.response.json().content;",
             "pm.test('our soft-deleted department is included', () => {",
             "    const ours = rows.find(d => d.id === Number(pm.collectionVariables.get('departmentId')));",
             "    pm.expect(ours, 'department present').to.exist;",
@@ -766,7 +770,7 @@
             "// No ?deleted= means no filter: one request, one query, both kinds."
           ] } }],
           "request": { "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"] } }
+            "url": { "raw": "{{baseUrl}}/api/departments/softDeleted?size=100", "host": ["{{baseUrl}}"], "path": ["api", "departments", "softDeleted"], "query": [{ "key": "size", "value": "100" }] } }
         },
         {
           "name": "PATCH /api/departments/softDeleted/{id} - restore it",
@@ -799,21 +803,23 @@
           "name": "GET /api/courses/softDeleted?deleted=true - only the flagged course",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const ids = pm.response.json().map(c => c.id);",
+            "pm.test('everything fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.be.at.most(1));",
+            "const ids = pm.response.json().content.map(c => c.id);",
             "pm.test('the online course is listed', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('the onsite course is not', () => pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('onsiteCourseId'))));"
           ] } }],
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }, { "key": "size", "value": "100" }] }
           }
         },
         {
           "name": "GET /api/courses/softDeleted?deleted=false - the onsite course is untouched",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const rows = pm.response.json();",
+            "pm.test('everything fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.be.at.most(1));",
+            "const rows = pm.response.json().content;",
             "const ids = rows.map(c => c.id);",
             "pm.test('the onsite course is still active', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('onsiteCourseId'))));",
             "pm.test('the flagged online course is gone from this list', () => pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('courseId'))));",
@@ -822,21 +828,21 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=false", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=false&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "false" }, { "key": "size", "value": "100" }] }
           }
         },
         {
           "name": "GET /api/courses/softDeleted - no filter returns deleted AND active (ADMIN sees all)",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK (null Boolean no longer unboxed into a 500)', () => pm.response.to.have.status(200));",
-            "const ids = pm.response.json().map(c => c.id);",
+            "const ids = pm.response.json().content.map(c => c.id);",
             "pm.test('the flagged online course is listed', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('courseId'))));",
             "pm.test('the active onsite course is listed too', () => pm.expect(ids).to.include(Number(pm.collectionVariables.get('onsiteCourseId'))));"
           ] } }],
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "size", "value": "100" }] }
           }
         },
         {
@@ -2156,7 +2162,7 @@
           "name": "GET /api/courses/softDeleted?deleted=true - OWNER sees only their own courses",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "const rows = pm.response.json();",
+            "const rows = pm.response.json().content;",
             "pm.test('their deleted course is listed', () => pm.expect(rows.map(c => c.id)).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));",
             "pm.test('every row is theirs', () => rows.forEach(c => pm.expect(c.lecturerId).to.eql(Number(pm.collectionVariables.get('ownerProfId')))));"
           ] } }],
@@ -2164,20 +2170,21 @@
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{ownerProfToken}}", "type": "string" }] },
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }, { "key": "size", "value": "100" }] }
           }
         },
         {
           "name": "GET /api/courses/softDeleted - OTHER professor does not see it",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('owned course is not listed', () => pm.expect(pm.response.json().map(c => c.id)).to.not.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
+            "pm.test('everything fits on one page, so absence is real', () => pm.expect(pm.response.json().page.totalPages).to.be.at.most(1));",
+            "pm.test('owned course is not listed', () => pm.expect(pm.response.json().content.map(c => c.id)).to.not.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
           ] } }],
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{otherProfToken}}", "type": "string" }] },
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "size", "value": "100" }] }
           }
         },
         {
@@ -2196,12 +2203,12 @@
           "name": "GET /api/courses/softDeleted?deleted=true - ADMIN sees every lecturer's courses",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
             "pm.test('200 OK', () => pm.response.to.have.status(200));",
-            "pm.test('the professor course is listed', () => pm.expect(pm.response.json().map(c => c.id)).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
+            "pm.test('the professor course is listed', () => pm.expect(pm.response.json().content.map(c => c.id)).to.include(Number(pm.collectionVariables.get('ownedCourseId'))));"
           ] } }],
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }] }
+            "url": { "raw": "{{baseUrl}}/api/courses/softDeleted?deleted=true&size=100", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted"], "query": [{ "key": "deleted", "value": "true" }, { "key": "size", "value": "100" }] }
           }
         },
         {
@@ -2251,6 +2258,73 @@
             "method": "PATCH",
             "header": [],
             "url": { "raw": "{{baseUrl}}/api/courses/softDeleted/{{ownedCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "softDeleted", "{{ownedCourseId}}"] }
+          }
+        },
+        {
+          "name": "POST /api/users - create a professor who will be hard-deleted",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('departingProfId', body.id);",
+            "pm.collectionVariables.set('departingProfEmail', body.email);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Departing Professor\",\n  \"email\": \"departing-{{$randomInt}}{{$randomInt}}@uni.test\",\n  \"password\": \"{{newUserPassword}}\",\n  \"role\": \"PROFESSOR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "POST /api/auth/login - as the departing professor",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('departingProfToken', pm.response.json().token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{departingProfEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "POST /api/courses/online - the departing professor lectures a course",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "pm.test('lecturer is the professor', () => pm.expect(pm.response.json().lecturerId).to.eql(Number(pm.collectionVariables.get('departingProfId'))));",
+            "pm.collectionVariables.set('departingCourseId', pm.response.json().id);"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{departingProfToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Course of a departing professor\",\n  \"departmentId\": {{departmentId}},\n  \"meetingUrl\": \"https://meet.example.com/departing\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/courses/online", "host": ["{{baseUrl}}"], "path": ["api", "courses", "online"] }
+          }
+        },
+        {
+          "name": "DELETE /api/users/{id} - hard-deleting a lecturer unassigns their courses -> 204 (was 409 FK violation)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/users/{{departingProfId}}", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{departingProfId}}"] }
+          }
+        },
+        {
+          "name": "GET /api/courses/{id} - the course survives without a lecturer",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('lecturer cleared (key absent via NON_NULL)', () => pm.expect(pm.response.json()).to.not.have.property('lecturerId'));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/courses/{{departingCourseId}}", "host": ["{{baseUrl}}"], "path": ["api", "courses", "{{departingCourseId}}"] }
           }
         }
       ]

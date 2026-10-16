@@ -18,4 +18,6 @@ public interface IUserAccountFacade {
     void changePassword(Long id, ChangePasswordRequest request);
 
     void resetPassword(Long id, ResetPasswordRequest request);
+
+    void delete(Long id);
 }

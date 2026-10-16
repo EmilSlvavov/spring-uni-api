@@ -66,12 +66,10 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     }
 
     @Override
-    public List<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId) {
+    public Page<CourseSoftDeleteResponse> findAllBySoftDeleted(Boolean deleted, Long lecturerId, Pageable pageable) {
         return courseRepository
-                .findForSoftDeleteList(deleted, lecturerId)
-                .stream()
-                .map(courseMapper::toResponseWithSoftDelete)
-                .toList();
+                .findForSoftDeleteList(deleted, lecturerId, pageable)
+                .map(courseMapper::toResponseWithSoftDelete);
     }
 
     @Override
@@ -130,6 +128,12 @@ public class CourseServiceImpl implements ICourseService, ICourseServiceInternal
     @Override
     public boolean isLecturedBy(Long courseId, Long userId) {
         return courseRepository.existsByIdAndLecturerId(courseId, userId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void unassignLecturer(Long lecturerId) {
+        courseRepository.unassignLecturer(lecturerId);
     }
 
 

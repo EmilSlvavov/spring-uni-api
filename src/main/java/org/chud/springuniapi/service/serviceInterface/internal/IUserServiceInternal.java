@@ -28,4 +28,6 @@ public interface IUserServiceInternal {
     void changePassword(Long id, String currentPassword, String newPassword);
 
     void resetPassword(Long id, String newPassword);
+
+    void delete(Long id);
 }

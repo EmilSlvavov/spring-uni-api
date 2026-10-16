@@ -32,15 +32,24 @@ public interface CourseRepository extends JpaRepository<Course, Long>, JpaSpecif
 
     boolean existsByIdAndLecturerId(Long id, Long lecturerId);
 
-    @Query("""
+    @Modifying
+    @Query("update Course c set c.lecturer = null where c.lecturer.id = :lecturerId")
+    int unassignLecturer(Long lecturerId);
+
+    @Query(value = """
             select c from Course c
             join fetch c.department d
             left join fetch c.lecturer l
             where (:deleted is null or c.deleted = :deleted)
               and (:lecturerId is null or l.id = :lecturerId)
-            order by c.id
+            """,
+            countQuery = """
+            select count(c) from Course c
+            left join c.lecturer l
+            where (:deleted is null or c.deleted = :deleted)
+              and (:lecturerId is null or l.id = :lecturerId)
             """)
-    List<Course> findForSoftDeleteList(Boolean deleted, Long lecturerId);
+    Page<Course> findForSoftDeleteList(Boolean deleted, Long lecturerId, Pageable pageable);
 
     @Query("""
             select new org.chud.springuniapi.repository.projection.UserSummaryRow(c.id, s.id, s.name)

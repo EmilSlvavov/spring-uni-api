@@ -58,16 +58,18 @@ public class CourseController {
     }
 
     @GetMapping("/softDeleted")
-    public List<CourseSoftDeleteResponse> getBySoftDeleted(@RequestParam(required = false) Boolean deleted
+    public Page<CourseSoftDeleteResponse> getBySoftDeleted(@RequestParam(required = false) Boolean deleted
             , @AuthenticationPrincipal MyUserDetails principal
+            , @PageableDefault(size = 20, sort = {"name", "id"}) Pageable pageable
     ) {
+        org.chud.springuniapi.controller.support.SortWhitelist.check(pageable, Set.of("name", "id"));
 
         boolean admin = principal.getAuthorities().stream().anyMatch(authority ->
                         "ROLE_ADMIN".equals(authority.getAuthority()));
 
         Long lecturerId = admin ? null : principal.id();
 
-        return courseService.findAllBySoftDeleted(deleted, lecturerId);
+        return courseService.findAllBySoftDeleted(deleted, lecturerId, pageable);
     }
 
     @PostMapping("/online")

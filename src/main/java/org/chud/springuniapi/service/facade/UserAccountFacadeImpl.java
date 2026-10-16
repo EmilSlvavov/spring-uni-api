@@ -8,6 +8,7 @@ import org.chud.springuniapi.dto.response.UserResponse;
 import org.chud.springuniapi.entity.Role;
 import org.chud.springuniapi.enums.RoleName;
 import org.chud.springuniapi.service.serviceInterface.IRefreshTokenService;
+import org.chud.springuniapi.service.serviceInterface.internal.ICourseServiceInternal;
 import org.chud.springuniapi.service.serviceInterface.internal.IRoleServiceInternal;
 import org.chud.springuniapi.service.serviceInterface.internal.IUserServiceInternal;
 import org.springframework.stereotype.Service;
@@ -21,14 +22,17 @@ public class UserAccountFacadeImpl implements IUserAccountFacade {
     private final IUserServiceInternal userService;
     private final IRoleServiceInternal roleService;
     private final IRefreshTokenService refreshTokenService;
+    private final ICourseServiceInternal courseService;
 
     public UserAccountFacadeImpl(
         IUserServiceInternal userService,
         IRoleServiceInternal roleService,
-        IRefreshTokenService refreshTokenService) {
+        IRefreshTokenService refreshTokenService,
+        ICourseServiceInternal courseService) {
         this.userService = userService;
         this.roleService = roleService;
         this.refreshTokenService = refreshTokenService;
+        this.courseService = courseService;
     }
 
     @Override
@@ -76,5 +80,12 @@ public class UserAccountFacadeImpl implements IUserAccountFacade {
         userService.resetPassword(id, request.newPassword());
 
         refreshTokenService.revokeAllFor(id);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        courseService.unassignLecturer(id);
+        userService.delete(id);
     }
 }

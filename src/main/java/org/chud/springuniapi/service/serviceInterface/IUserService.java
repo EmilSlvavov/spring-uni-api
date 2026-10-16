@@ -29,8 +29,6 @@ public interface IUserService {
 
     UserResponse updateProfile(Long id, UpdateUserProfileRequest request);
 
-    void delete(Long id);
-
     UserSoftDeleteResponse softDelete(Long id);
 
     UserSoftDeleteResponse restoreSoftDelete(Long id);

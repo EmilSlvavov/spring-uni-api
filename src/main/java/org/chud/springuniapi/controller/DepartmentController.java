@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -41,9 +40,11 @@ public class DepartmentController {
     }
 
     @GetMapping("/softDeleted")
-    public List<DepartmentSoftDeleteResponse> getBySoftDeleted(
-            @RequestParam(required = false) Boolean deleted) {
-        return departmentService.findAllBySoftDeleted(deleted);
+    public Page<DepartmentSoftDeleteResponse> getBySoftDeleted(
+            @RequestParam(required = false) Boolean deleted,
+            @PageableDefault(size = 20, sort = {"name", "id"}) Pageable pageable) {
+        org.chud.springuniapi.controller.support.SortWhitelist.check(pageable, Set.of("name", "id"));
+        return departmentService.findAllBySoftDeleted(deleted, pageable);
     }
 
     @PostMapping

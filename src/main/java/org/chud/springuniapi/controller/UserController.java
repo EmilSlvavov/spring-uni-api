@@ -128,7 +128,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN') || @authorizationService.isAccessingSelf(#id, authentication)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        userService.delete(id);
+        userAccountFacade.delete(id);
         return ResponseEntity.noContent().build();
     }
 
